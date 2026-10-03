@@ -3,6 +3,7 @@
 
   const CFG = window.APP_CONFIG;
   const API = (CFG.SHEET_API_URL || "").trim();
+  const API_OK = /^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec\/?$/.test(API);
   const VARIANTS = [
     { id: "color", name: "สี", dot: "color" },
     { id: "bw", name: "ขาวดำ", dot: "bw" },
@@ -468,6 +469,7 @@
   }
 
   async function pushPending() {
+    if (!API_OK) return;
     const pending = records.filter((r) => !r.synced);
     if (!pending.length) {
       setStatus("เชื่อมต่อ Google Sheet แล้ว", "ok");
@@ -491,6 +493,7 @@
   }
 
   async function pullRemote(showToast) {
+    if (!API_OK) return;
     try {
       const res = await fetch(`${API}?action=list`);
       const data = await res.json();
@@ -511,7 +514,10 @@
   renderEmployees();
   renderMaterials();
   initFilters();
-  if (API) {
+  if (API && !API_OK) {
+    // ลิงก์ผิดรูปแบบ (เช่น ลิงก์ googleusercontent ที่ได้หลังเปิด /exec ในเบราว์เซอร์)
+    setStatus("ลิงก์ Google Sheet ใน config.js ไม่ถูกต้อง ต้องขึ้นต้น script.google.com และลงท้าย /exec", "warn");
+  } else if (API) {
     setStatus("กำลังเชื่อมต่อ Google Sheet…");
     pushPending();
     window.addEventListener("online", pushPending);
