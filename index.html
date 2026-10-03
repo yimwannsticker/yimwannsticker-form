@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#ff8fb1" />
+  <title>บันทึกมิเตอร์การพิมพ์</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖨️</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">🖨️</span>
+      <div>
+        <h1>บันทึกมิเตอร์การพิมพ์</h1>
+        <p class="sub" id="syncStatus">กำลังโหลด…</p>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-view="record" role="tab">✏️ บันทึก</button>
+      <button class="tab" data-view="history" role="tab">📋 ประวัติ</button>
+    </nav>
+  </header>
+
+  <!-- ===== หน้าบันทึก ===== -->
+  <main id="view-record" class="view">
+    <section class="card step">
+      <h2><span class="step-no">1</span> ใครเป็นคนพิมพ์?</h2>
+      <div class="chips-select" id="employeeList"></div>
+    </section>
+
+    <section class="step">
+      <div class="step-head">
+        <h2><span class="step-no">2</span> ใส่จำนวนแผ่นแต่ละงาน</h2>
+        <p class="hint">
+          พิมพ์ตัวเลขแล้วกด <kbd>Enter</kbd> หรือปุ่ม <b>＋</b> ได้หลายงาน เว็บบวกให้เอง<br />
+          ช่องไหนไม่ได้พิมพ์ ปล่อยว่างไว้ได้เลย ไม่ต้องใส่ "-"
+        </p>
+      </div>
+      <div id="materialList" class="materials"></div>
+    </section>
+    <div class="footer-spacer"></div>
+  </main>
+
+  <!-- แถบล่าง: ยอดรวม + ปุ่มส่ง -->
+  <footer class="bottombar" id="bottombar">
+    <div class="total-box">
+      <span class="total-label">รวมทั้งหมด</span>
+      <span class="total-num"><b id="grandTotal">0</b> แผ่น</span>
+    </div>
+    <button class="btn ghost" id="btnClear" type="button">ล้าง</button>
+    <button class="btn primary" id="btnSubmit" type="button">ตรวจสอบ &amp; ส่ง</button>
+  </footer>
+
+  <!-- ===== หน้าประวัติ ===== -->
+  <main id="view-history" class="view" hidden>
+    <section class="card filters">
+      <label>
+        <span>ตั้งแต่</span>
+        <input type="date" id="fFrom" />
+      </label>
+      <label>
+        <span>ถึง</span>
+        <input type="date" id="fTo" />
+      </label>
+      <label>
+        <span>พนักงาน</span>
+        <select id="fEmp"></select>
+      </label>
+      <div class="quick">
+        <button class="pill" data-range="today">วันนี้</button>
+        <button class="pill" data-range="yesterday">เมื่อวาน</button>
+        <button class="pill" data-range="week">7 วัน</button>
+        <button class="pill" data-range="month">เดือนนี้</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row-between">
+        <h2>สรุปยอด</h2>
+        <div class="actions">
+          <button class="btn small ghost" id="btnRefresh" type="button">🔄 รีเฟรช</button>
+          <button class="btn small ghost" id="btnExport" type="button">⬇️ CSV</button>
+        </div>
+      </div>
+      <div id="summary"></div>
+    </section>
+
+    <section>
+      <h2 class="list-title">รายการที่บันทึก <span id="recCount" class="muted"></span></h2>
+      <div id="recordList" class="records"></div>
+    </section>
+  </main>
+
+  <!-- กล่องยืนยัน -->
+  <dialog id="confirmDialog">
+    <form method="dialog" class="dialog-body">
+      <h2>ตรวจสอบก่อนส่ง 👀</h2>
+      <p class="muted" id="confirmWho"></p>
+      <div id="confirmTable"></div>
+      <div class="dialog-actions">
+        <button class="btn ghost" value="cancel">กลับไปแก้</button>
+        <button class="btn primary" value="ok" id="btnConfirm">ยืนยัน ส่งเลย ✅</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
