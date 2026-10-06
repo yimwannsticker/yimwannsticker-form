@@ -22,10 +22,11 @@
   <header class="topbar">
     <div class="brand">
       <img class="brand-icon" src="icons/icon.svg" alt="" width="46" height="46" />
-      <div>
+      <div class="brand-text">
         <h1>บันทึกมิเตอร์การพิมพ์</h1>
         <p class="sub" id="syncStatus">กำลังโหลด…</p>
       </div>
+      <button class="install-btn" id="btnInstall" type="button" hidden>📲 ติดตั้งแอพ</button>
     </div>
     <nav class="tabs" role="tablist">
       <button class="tab active" data-view="record" role="tab">✏️ บันทึก</button>
@@ -35,6 +36,15 @@
 
   <!-- ===== หน้าบันทึก ===== -->
   <main id="view-record" class="view">
+    <div class="install-banner" id="installBanner" hidden>
+      <img src="icons/icon-192.png" alt="" width="44" height="44" />
+      <div class="install-banner-text">
+        <b>ติดไว้บนหน้าจอมือถือ</b>
+        <span>เปิดได้ทันทีจากไอคอน เหมือนแอพ</span>
+      </div>
+      <button class="btn small primary" id="bannerHow" type="button">ดูวิธี</button>
+      <button class="banner-close" id="bannerClose" type="button" aria-label="ปิด">✕</button>
+    </div>
     <section class="card step">
       <h2><span class="step-no">1</span> ใครเป็นคนพิมพ์?</h2>
       <div class="chips-select" id="employeeList"></div>
@@ -123,6 +133,74 @@
         <button class="btn primary" value="ok" id="btnConfirm">ยืนยัน ส่งเลย ✅</button>
       </div>
     </form>
+  </dialog>
+
+  <!-- วิธีติดตั้งบนหน้าจอหลัก -->
+  <dialog id="installDialog">
+    <div class="dialog-body install">
+      <div class="row-between">
+        <h2>📲 ติดตั้งบนหน้าจอมือถือ</h2>
+        <button class="banner-close" id="installClose" type="button" aria-label="ปิด">✕</button>
+      </div>
+
+      <div class="inapp" id="inAppWarn" hidden>
+        <b>ตอนนี้เปิดอยู่ในแอพ <span id="inAppName">LINE</span></b>
+        <span>ติดตั้งจากในแอพนี้ไม่ได้ ต้องเปิดใน Safari (iPhone) หรือ Chrome (Android) ก่อน</span>
+        <a class="btn small primary" id="openExternal" href="#">เปิดในเบราว์เซอร์</a>
+        <span class="muted small-text">ถ้ากดแล้วไม่ไป ให้กดปุ่ม ••• หรือ ⋮ มุมขวาบน แล้วเลือก "เปิดในเบราว์เซอร์"</span>
+      </div>
+
+      <div class="seg" role="tablist">
+        <button type="button" class="seg-btn" data-os="ios" role="tab">iPhone / iPad</button>
+        <button type="button" class="seg-btn" data-os="android" role="tab">Android</button>
+      </div>
+
+      <ol class="howto" data-panel="ios">
+        <li>
+          <b>เปิดเว็บนี้ด้วย Safari</b>
+          <span>(Chrome บน iPhone ก็ได้ ขั้นตอนคล้ายกัน)</span>
+        </li>
+        <li>
+          <b>แตะปุ่มแชร์
+            <svg class="ico" viewBox="0 0 24 24" aria-label="ปุ่มแชร์"><path d="M12 3v12M7.5 7.5 12 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 10H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </b>
+          <span>อยู่แถบล่างของจอ (iPad อยู่มุมขวาบน) ถ้าไม่เห็น ให้แตะ <b>•••</b> ก่อน</span>
+        </li>
+        <li>
+          <b>เลือก "เพิ่มไปยังหน้าจอโฮม"
+            <svg class="ico" viewBox="0 0 24 24" aria-label="ไอคอนเพิ่ม"><rect x="4" y="4" width="16" height="16" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8.5v7M8.5 12h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </b>
+          <span>ถ้าไม่เห็น ให้เลื่อนรายการลงมา หรือกด "แก้ไขการทำงาน" แล้วเพิ่มเข้าไป</span>
+        </li>
+        <li>
+          <b>แตะ "เพิ่ม" มุมขวาบน</b>
+          <span>จะได้ไอคอนสีชมพูชื่อ "มิเตอร์พิมพ์" บนหน้าจอ</span>
+        </li>
+      </ol>
+
+      <div data-panel="android">
+        <button class="btn primary full" id="nativeInstall" type="button" hidden>⬇️ ติดตั้งเลย</button>
+        <p class="muted or-text" id="nativeOr" hidden>หรือทำเองตามขั้นตอนนี้</p>
+        <ol class="howto">
+          <li>
+            <b>เปิดเว็บนี้ด้วย Chrome</b>
+            <span>(Samsung Internet ก็ได้ ใช้เมนู ☰ แทน)</span>
+          </li>
+          <li>
+            <b>แตะ <span class="kbd-dots">⋮</span> มุมขวาบน</b>
+          </li>
+          <li>
+            <b>เลือก "เพิ่มลงในหน้าจอหลัก" หรือ "ติดตั้งแอป"</b>
+          </li>
+          <li>
+            <b>แตะ "ติดตั้ง" หรือ "เพิ่ม"</b>
+            <span>จะได้ไอคอนสีชมพูชื่อ "มิเตอร์พิมพ์" บนหน้าจอ</span>
+          </li>
+        </ol>
+      </div>
+
+      <p class="note-ok">ติดตั้งแล้ว ข้อมูลยังเป็นชุดเดียวกับในเว็บ ไม่ต้องตั้งค่าใหม่</p>
+    </div>
   </dialog>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>

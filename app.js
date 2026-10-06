@@ -604,7 +604,91 @@
     }
   }
 
+  // ---------------- install (add to home screen) ----------------
+  function initInstall() {
+    const ua = navigator.userAgent;
+    const isIOS = /iPhone|iPad|iPod/i.test(ua) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const isAndroid = /Android/i.test(ua);
+    const isMobile = isIOS || isAndroid;
+    const standalone = window.matchMedia("(display-mode: standalone)").matches ||
+      navigator.standalone === true;
+    const inApp = [
+      [/\bLine\//i, "LINE"],
+      [/FBAN|FBAV|FB_IAB/i, "Facebook"],
+      [/Instagram/i, "Instagram"],
+      [/Messenger/i, "Messenger"],
+      [/TikTok|musical_ly/i, "TikTok"],
+    ].find(([re]) => re.test(ua));
+    let deferred = null;
+    const DISMISS = "meter_install_dismissed_v1";
+
+    const dialog = $("#installDialog");
+    const showTab = (os) => {
+      $$(".seg-btn", dialog).forEach((b) => b.classList.toggle("active", b.dataset.os === os));
+      $$("[data-panel]", dialog).forEach((p) => (p.hidden = p.dataset.panel !== os));
+    };
+    $$(".seg-btn", dialog).forEach((b) => b.addEventListener("click", () => showTab(b.dataset.os)));
+
+    if (inApp) {
+      $("#inAppWarn").hidden = false;
+      $("#inAppName").textContent = inApp[1];
+      const link = $("#openExternal");
+      if (inApp[1] === "LINE") {
+        const u = new URL(location.href);
+        u.searchParams.set("openExternalBrowser", "1");
+        link.href = u.toString();
+      } else if (isAndroid) {
+        link.href = `intent://${location.host}${location.pathname}#Intent;scheme=https;package=com.android.chrome;end`;
+      } else {
+        link.hidden = true;
+      }
+    }
+
+    const open = () => {
+      showTab(isAndroid ? "android" : "ios");
+      dialog.showModal();
+    };
+    $("#btnInstall").addEventListener("click", open);
+    $("#bannerHow").addEventListener("click", open);
+    $("#installClose").addEventListener("click", () => dialog.close());
+    $("#bannerClose").addEventListener("click", () => {
+      $("#installBanner").hidden = true;
+      save(DISMISS, true);
+    });
+
+    const refresh = () => {
+      if (standalone) return;
+      $("#btnInstall").hidden = !(isMobile || deferred);
+      $("#installBanner").hidden = !isMobile || load(DISMISS, false);
+      $("#nativeInstall").hidden = !deferred;
+      $("#nativeOr").hidden = !deferred;
+    };
+
+    // Chrome / Android: ปุ่มติดตั้งในตัว
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferred = e;
+      refresh();
+    });
+    $("#nativeInstall").addEventListener("click", async () => {
+      if (!deferred) return;
+      deferred.prompt();
+      await deferred.userChoice.catch(() => {});
+      deferred = null;
+      refresh();
+    });
+    window.addEventListener("appinstalled", () => {
+      dialog.close();
+      $("#btnInstall").hidden = true;
+      $("#installBanner").hidden = true;
+      toast("ติดตั้งแล้ว ดูไอคอน \"มิเตอร์พิมพ์\" บนหน้าจอได้เลย 🎉");
+    });
+    refresh();
+  }
+
   // ---------------- init ----------------
+  initInstall();
   renderEmployees();
   renderMaterials();
   initFilters();

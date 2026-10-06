@@ -270,3 +270,53 @@ dialog::backdrop { background: rgba(40, 20, 35, .45); backdrop-filter: blur(2px)
   border: 0; background: var(--primary); color: var(--primary-ink); font-weight: 600;
   border-radius: 10px; padding: 6px 12px; cursor: pointer; white-space: nowrap;
 }
+
+/* ---------- install ---------- */
+.brand-text { flex: 1; min-width: 0; }
+.install-btn {
+  flex: none; border: 1px solid var(--primary); background: var(--primary-soft); color: var(--primary);
+  border-radius: 999px; padding: 6px 10px; font-weight: 600; font-size: 0.8rem; cursor: pointer; white-space: nowrap;
+}
+.install-banner {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+  background: var(--surface); border: 1px solid var(--primary); border-radius: var(--radius);
+  padding: 12px 12px 12px 14px; box-shadow: var(--shadow);
+}
+.install-banner img { border-radius: 12px; flex: none; }
+.install-banner-text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+.install-banner-text span { font-size: 0.82rem; color: var(--muted); }
+.banner-close {
+  flex: none; border: 0; background: transparent; color: var(--muted); cursor: pointer;
+  width: 34px; height: 34px; border-radius: 50%; font-size: 1rem;
+}
+.banner-close:hover { background: var(--surface-2); }
+.dialog-body.install { display: grid; gap: 14px; max-height: 85vh; overflow-y: auto; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border-radius: 12px; padding: 4px; gap: 4px; }
+.seg-btn { border: 0; background: transparent; border-radius: 9px; padding: 8px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.seg-btn.active { background: var(--surface); color: var(--primary); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.howto { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 12px; }
+.howto li {
+  counter-increment: step; display: grid; grid-template-columns: 32px 1fr; column-gap: 12px; row-gap: 2px;
+}
+.howto li::before {
+  content: counter(step); grid-row: span 2; width: 32px; height: 32px; border-radius: 50%;
+  background: var(--primary); color: var(--primary-ink); display: grid; place-items: center; font-weight: 700;
+}
+.howto li > b { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-weight: 600; }
+.howto li > span { font-size: 0.86rem; color: var(--muted); }
+.ico {
+  width: 28px; height: 28px; padding: 3px; border-radius: 8px; color: #1a73e8;
+  background: var(--surface-2); border: 1px solid var(--border);
+}
+.kbd-dots {
+  display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border); font-weight: 700; color: var(--text);
+}
+.inapp {
+  display: grid; gap: 6px; background: #fff1d6; color: #6b4600; border-radius: 14px; padding: 12px 14px; font-size: 0.9rem;
+}
+.inapp .btn { justify-self: start; text-decoration: none; display: inline-grid; place-items: center; }
+.small-text { font-size: 0.78rem; color: #8a6a2a; }
+.btn.full { width: 100%; }
+.or-text { text-align: center; margin: 8px 0 0; font-size: 0.85rem; }
+.note-ok { margin: 0; font-size: 0.85rem; color: var(--muted); background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
