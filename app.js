@@ -458,13 +458,25 @@
 
   async function apiPost(body) {
     // text/plain เพื่อเลี่ยง CORS preflight ของ Apps Script
-    const res = await fetch(API, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!data.ok) throw new Error(data.error || "API error");
+    let res;
+    try {
+      res = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      if (!navigator.onLine) throw new Error("ไม่มีอินเทอร์เน็ต");
+      // มีเน็ตแต่ fetch ล้ม = ส่วนใหญ่ Google เด้งไปหน้าล็อกอิน (สิทธิ์ไม่ใช่ "ทุกคน")
+      throw new Error('Google Script ไม่ยอมรับ ให้ตั้ง "ผู้มีสิทธิ์เข้าถึง" เป็น "ทุกคน" แล้ว Deploy เวอร์ชันใหม่');
+    }
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`Google Script ตอบกลับผิดรูปแบบ (HTTP ${res.status}) ลอง Deploy เวอร์ชันใหม่`);
+    }
+    if (!data.ok) throw new Error(`สคริปต์แจ้งว่า: ${data.error || "ไม่ทราบสาเหตุ"}`);
     return data;
   }
 
@@ -476,18 +488,20 @@
       return;
     }
     setStatus(`กำลังส่ง ${pending.length} รายการ…`);
+    let lastError = "";
     for (const r of pending) {
       try {
         const { synced, ...payload } = r;
         await apiPost({ action: "add", record: payload });
         r.synced = true;
         save(LS.records, records);
-      } catch {
+      } catch (err) {
+        lastError = err.message;
         break;
       }
     }
     const left = records.filter((r) => !r.synced).length;
-    if (left) setStatus(`ออฟไลน์ · ค้างส่ง ${left} รายการ (จะส่งให้อัตโนมัติ)`, "warn");
+    if (left) setStatus(`ค้างส่ง ${left} รายการ · ${lastError}`, "warn");
     else setStatus("เชื่อมต่อ Google Sheet แล้ว", "ok");
     if (!$("#view-history").hidden) renderHistory();
   }
