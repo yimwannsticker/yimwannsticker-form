@@ -91,8 +91,17 @@
     </section>
 
     <section>
-      <h2 class="list-title">รายการที่บันทึก <span id="recCount" class="muted"></span></h2>
+      <div class="row-between list-title">
+        <h2>รายการที่บันทึก <span id="recCount" class="muted"></span></h2>
+        <button class="btn small ghost" id="btnTrash" type="button">🗑️ ถังขยะ <span id="trashCount"></span></button>
+      </div>
       <div id="recordList" class="records"></div>
+    </section>
+
+    <section id="trashSection" class="trash-section" hidden>
+      <h2 class="list-title">🗑️ ถังขยะ</h2>
+      <p class="hint">รายการที่ถูกลบจะมาอยู่ที่นี่ กด "กู้คืน" เพื่อเอากลับไปรวมยอดเหมือนเดิม</p>
+      <div id="trashList" class="records"></div>
     </section>
   </main>
 

@@ -4,6 +4,7 @@
  */
 
 const SHEET_NAME = 'บันทึกมิเตอร์';
+const TRASH_NAME = 'ถังขยะ';
 
 // ต้องเรียงลำดับเหมือน MATERIALS ใน config.js
 const FIELDS = [
@@ -19,18 +20,41 @@ const FIELDS = [
   ['paper_art__bw', 'กระดาษอาร์ต - ขาวดำ (แผ่น)'],
 ];
 const HEADER = ['Timestamp', 'พนักงาน'].concat(FIELDS.map(f => f[1]), ['รวม (แผ่น)', 'รายละเอียด', 'ID']);
-const COL_ID = HEADER.length; // คอลัมน์สุดท้าย
+const COL_ID = HEADER.length; // คอลัมน์ ID (ตำแหน่งเดียวกันทั้งชีตหลักและถังขยะ)
+const TRASH_HEADER = HEADER.concat(['ลบเมื่อ', 'ลบโดย']);
 
-function getSheet_() {
+function getSheet_(name, header) {
+  name = name || SHEET_NAME;
+  header = header || HEADER;
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sh = ss.getSheetByName(SHEET_NAME);
+  let sh = ss.getSheetByName(name);
   if (!sh) {
-    sh = ss.insertSheet(SHEET_NAME);
-    sh.appendRow(HEADER);
+    sh = ss.insertSheet(name);
+    sh.appendRow(header);
     sh.setFrozenRows(1);
-    sh.getRange(1, 1, 1, HEADER.length).setFontWeight('bold');
+    sh.getRange(1, 1, 1, header.length).setFontWeight('bold');
   }
   return sh;
+}
+
+function readRows_(sh, width) {
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  return sh.getRange(2, 1, last - 1, width).getValues().filter(r => r[COL_ID - 1]);
+}
+
+function toRecord_(r) {
+  const totals = {};
+  FIELDS.forEach((f, i) => { totals[f[0]] = Number(r[2 + i]) || 0; });
+  let details = {};
+  try { details = JSON.parse(r[HEADER.length - 2] || '{}'); } catch (err) {}
+  return {
+    id: String(r[COL_ID - 1]),
+    ts: new Date(r[0]).toISOString(),
+    employee: String(r[1]),
+    totals: totals,
+    details: details,
+  };
 }
 
 function json_(obj) {
@@ -40,24 +64,14 @@ function json_(obj) {
 
 function doGet(e) {
   try {
-    const sh = getSheet_();
-    const last = sh.getLastRow();
-    if (last < 2) return json_({ ok: true, records: [] });
-    const rows = sh.getRange(2, 1, last - 1, HEADER.length).getValues();
-    const records = rows.filter(r => r[COL_ID - 1]).map(r => {
-      const totals = {};
-      FIELDS.forEach((f, i) => { totals[f[0]] = Number(r[2 + i]) || 0; });
-      let details = {};
-      try { details = JSON.parse(r[HEADER.length - 2] || '{}'); } catch (err) {}
-      return {
-        id: String(r[COL_ID - 1]),
-        ts: new Date(r[0]).toISOString(),
-        employee: String(r[1]),
-        totals: totals,
-        details: details,
-      };
+    const records = readRows_(getSheet_(), HEADER.length).map(toRecord_);
+    const trash = readRows_(getSheet_(TRASH_NAME, TRASH_HEADER), TRASH_HEADER.length).map(r => {
+      const rec = toRecord_(r);
+      rec.deletedAt = new Date(r[HEADER.length]).toISOString();
+      rec.deletedBy = String(r[HEADER.length + 1] || '');
+      return rec;
     });
-    return json_({ ok: true, records: records });
+    return json_({ ok: true, records: records, trash: trash });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
   }
@@ -79,9 +93,26 @@ function doPost(e) {
       return json_({ ok: true });
     }
 
-    if (body.action === 'delete') {
+    // ไม่ลบทิ้งจริง: ย้ายแถวไปแท็บ "ถังขยะ" เพื่อกู้คืนได้
+    if (body.action === 'trash') {
       const row = findRow_(sh, body.id);
-      if (row) sh.deleteRow(row);
+      if (!row) return json_({ ok: true, missing: true });
+      const values = sh.getRange(row, 1, 1, HEADER.length).getValues()[0];
+      getSheet_(TRASH_NAME, TRASH_HEADER).appendRow(values.concat([new Date(), body.by || '']));
+      sh.deleteRow(row);
+      return json_({ ok: true });
+    }
+
+    if (body.action === 'restore') {
+      const trash = getSheet_(TRASH_NAME, TRASH_HEADER);
+      const row = findRow_(trash, body.id);
+      if (!row) return json_({ ok: true, missing: true });
+      const values = trash.getRange(row, 1, 1, HEADER.length).getValues()[0];
+      if (!findRow_(sh, body.id)) {
+        sh.appendRow(values);
+        if (sh.getLastRow() > 2) sh.getRange(2, 1, sh.getLastRow() - 1, HEADER.length).sort(1);
+      }
+      trash.deleteRow(row);
       return json_({ ok: true });
     }
 

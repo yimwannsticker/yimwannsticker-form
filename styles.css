@@ -259,3 +259,14 @@ dialog::backdrop { background: rgba(40, 20, 35, .45); backdrop-filter: blur(2px)
   text-align: center;
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- trash ---------- */
+#btnTrash.active { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.trash-section { margin-top: 24px; padding-top: 8px; border-top: 2px dashed var(--border); }
+.record.trashed { opacity: .85; background: var(--surface-2); box-shadow: none; }
+.record.trashed .record-total { color: var(--muted); text-decoration: line-through; }
+.toast.has-action { white-space: nowrap; pointer-events: auto; display: flex; align-items: center; gap: 12px; }
+.toast button {
+  border: 0; background: var(--primary); color: var(--primary-ink); font-weight: 600;
+  border-radius: 10px; padding: 6px 12px; cursor: pointer; white-space: nowrap;
+}

@@ -56,12 +56,23 @@
 
   // ---------------- toast ----------------
   let toastTimer;
-  function toast(msg) {
+  function toast(msg, action) {
     const el = $("#toast");
     el.textContent = msg;
+    el.classList.toggle("has-action", !!action);
+    if (action) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = action.label;
+      b.addEventListener("click", () => {
+        el.classList.remove("show");
+        action.onClick();
+      });
+      el.appendChild(b);
+    }
     el.classList.add("show");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
+    toastTimer = setTimeout(() => el.classList.remove("show"), action ? 7000 : 2600);
   }
 
   // ---------------- tabs ----------------
@@ -339,6 +350,7 @@
     const emp = $("#fEmp").value;
     return records
       .filter((r) => {
+        if (r.deletedAt) return false;
         const d = dateKey(r.ts);
         return (!from || d >= from) && (!to || d <= to) && (!emp || r.employee === emp);
       })
@@ -381,25 +393,83 @@
           <span class="badge ${r.synced ? "" : "pending"}">${r.synced ? (API ? "☁️ บันทึกลงชีตแล้ว" : "💾 บันทึกในเครื่อง") : "⏳ รอส่งขึ้นชีต"}</span>
           <button class="btn small danger" type="button">ลบ</button>
         </div>`;
-      $(".btn.danger", el).addEventListener("click", () => deleteRecord(r));
+      $(".btn.danger", el).addEventListener("click", () => moveToTrash(r));
+      box.appendChild(el);
+    });
+    renderTrash();
+  }
+
+  // ---------------- trash ----------------
+  const timeText = (d) =>
+    new Date(d).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
+
+  function renderTrash() {
+    const list = records
+      .filter((r) => r.deletedAt)
+      .sort((a, b) => (a.deletedAt < b.deletedAt ? 1 : -1));
+    $("#trashCount").textContent = list.length ? `(${list.length})` : "";
+    const box = $("#trashList");
+    if ($("#trashSection").hidden) return;
+    box.innerHTML = list.length
+      ? ""
+      : `<div class="empty"><span class="big">🧺</span>ถังขยะว่างเปล่า</div>`;
+    list.forEach((r) => {
+      const total = sum(Object.values(r.totals).map(Number));
+      const el = document.createElement("article");
+      el.className = "record trashed";
+      el.innerHTML = `
+        <div class="record-head">
+          <div>
+            <div class="record-who">👤 ${r.employee}</div>
+            <div class="record-time">พิมพ์เมื่อ ${timeText(r.ts)}</div>
+          </div>
+          <div class="record-total">${fmt(total)} แผ่น</div>
+        </div>
+        <div class="record-foot">
+          <span class="badge">🗑️ ลบโดย ${r.deletedBy || "ไม่ระบุ"} · ${timeText(r.deletedAt)}</span>
+          <button class="btn small ghost" type="button">↩️ กู้คืน</button>
+        </div>`;
+      $(".btn", el).addEventListener("click", () => restoreRecord(r));
       box.appendChild(el);
     });
   }
 
-  async function deleteRecord(r) {
-    if (!confirm(`ลบรายการของ ${r.employee} (${new Date(r.ts).toLocaleString("th-TH")}) ?`)) return;
+  async function moveToTrash(r) {
+    const who = employee || "ไม่ระบุ";
+    const warn = employee && r.employee !== employee
+      ? `⚠️ รายการนี้เป็นของ "${r.employee}" ไม่ใช่ของ "${employee}"\n\n`
+      : "";
+    if (!confirm(`${warn}ย้ายรายการของ ${r.employee} (${timeText(r.ts)}) ไปถังขยะ?\nกู้คืนได้ภายหลังจากปุ่ม 🗑️ ถังขยะ`)) return;
     if (API && r.synced) {
       try {
-        await apiPost({ action: "delete", id: r.id });
-      } catch {
-        toast("ลบไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่");
+        await apiPost({ action: "trash", id: r.id, by: who });
+      } catch (err) {
+        toast(`ลบไม่สำเร็จ: ${err.message}`);
         return;
       }
     }
-    records = records.filter((x) => x.id !== r.id);
+    r.deletedAt = new Date().toISOString();
+    r.deletedBy = who;
     save(LS.records, records);
     renderHistory();
-    toast("ลบแล้ว");
+    toast("ย้ายไปถังขยะแล้ว", { label: "เลิกทำ", onClick: () => restoreRecord(r) });
+  }
+
+  async function restoreRecord(r) {
+    if (API && r.synced) {
+      try {
+        await apiPost({ action: "restore", id: r.id });
+      } catch (err) {
+        toast(`กู้คืนไม่สำเร็จ: ${err.message}`);
+        return;
+      }
+    }
+    delete r.deletedAt;
+    delete r.deletedBy;
+    save(LS.records, records);
+    renderHistory();
+    toast("กู้คืนแล้ว ↩️");
+    if (API && !r.synced) pushPending();
   }
 
   function initFilters() {
@@ -422,6 +492,13 @@
       await pullRemote(true);
     });
     $("#btnExport").addEventListener("click", exportCsv);
+    $("#btnTrash").addEventListener("click", () => {
+      const sec = $("#trashSection");
+      sec.hidden = !sec.hidden;
+      $("#btnTrash").classList.toggle("active", !sec.hidden);
+      renderTrash();
+      if (!sec.hidden) sec.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
     setRange("today");
   }
 
@@ -476,13 +553,16 @@
     } catch {
       throw new Error(`Google Script ตอบกลับผิดรูปแบบ (HTTP ${res.status}) ลอง Deploy เวอร์ชันใหม่`);
     }
+    if (data.error === "unknown action") {
+      throw new Error("ต้องอัปเดตโค้ด Apps Script (Code.gs) เป็นเวอร์ชันล่าสุดก่อน");
+    }
     if (!data.ok) throw new Error(`สคริปต์แจ้งว่า: ${data.error || "ไม่ทราบสาเหตุ"}`);
     return data;
   }
 
   async function pushPending() {
     if (!API_OK) return;
-    const pending = records.filter((r) => !r.synced);
+    const pending = records.filter((r) => !r.synced && !r.deletedAt);
     if (!pending.length) {
       setStatus("เชื่อมต่อ Google Sheet แล้ว", "ok");
       return;
@@ -500,7 +580,7 @@
         break;
       }
     }
-    const left = records.filter((r) => !r.synced).length;
+    const left = records.filter((r) => !r.synced && !r.deletedAt).length;
     if (left) setStatus(`ค้างส่ง ${left} รายการ · ${lastError}`, "warn");
     else setStatus("เชื่อมต่อ Google Sheet แล้ว", "ok");
     if (!$("#view-history").hidden) renderHistory();
@@ -513,7 +593,7 @@
       const data = await res.json();
       if (!data.ok) throw new Error(data.error);
       const pending = records.filter((r) => !r.synced);
-      const remote = data.records.map((r) => ({ ...r, synced: true }));
+      const remote = [...data.records, ...(data.trash || [])].map((r) => ({ ...r, synced: true }));
       const ids = new Set(remote.map((r) => r.id));
       records = [...pending.filter((r) => !ids.has(r.id)), ...remote];
       save(LS.records, records);
