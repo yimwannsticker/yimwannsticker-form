@@ -111,7 +111,15 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script>
+    // โหลด config.js / app.js ใหม่ทุกครั้ง กันเบราว์เซอร์จำไฟล์เก่าหลังแก้ตั้งค่า
+    (function load(files) {
+      if (!files.length) return;
+      var s = document.createElement("script");
+      s.src = files[0] + "?t=" + Date.now();
+      s.onload = function () { load(files.slice(1)); };
+      document.body.appendChild(s);
+    })(["config.js", "app.js"]);
+  </script>
 </body>
 </html>
