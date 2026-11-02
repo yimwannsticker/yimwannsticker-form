@@ -194,7 +194,7 @@
         <div class="row-between">
           <div>
             <div class="pack-track">${esc(o.tracking)}</div>
-            <div class="muted small-text">Order ${esc(o.orderId)}</div>
+            <div class="muted pack-order">Order ${esc(o.orderId)}</div>
           </div>
           <div class="pack-total">${o.items.length} รายการ<br /><b>${totalSheets}</b> แผ่น</div>
         </div>

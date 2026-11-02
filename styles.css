@@ -1,33 +1,46 @@
 :root {
-  --bg: #fff7fa;
+  /* Yimwann Sticker CI: เขียวมรกต #006851 (ธาตุไม้) + เหลืองส้ม #FABA03 (ธาตุไฟ) + ขาว */
+  --brand-green: #006851;
+  --brand-yellow: #faba03;
+  --bg: #f4f8f5;
   --surface: #ffffff;
-  --surface-2: #fdf0f5;
-  --text: #3a2e39;
-  --muted: #8a7a88;
-  --border: #f1dfe7;
-  --primary: #ff6f9f;
+  --surface-2: #ecf4ef;
+  --text: #17332b;
+  --muted: #5d776e;
+  --border: #d6e6dd;
+  --primary: #006851;
   --primary-ink: #ffffff;
-  --primary-soft: #ffe3ed;
-  --ok: #2fb380;
+  --primary-soft: #dcefe6;
+  --accent: #faba03;
+  --accent-ink: #3d2c00;
+  --accent-soft: #fff3cc;
+  --ok: #2e9e5b;
   --danger: #e5484d;
-  --shadow: 0 4px 18px rgba(255, 111, 159, 0.12);
+  --shadow: 0 4px 18px rgba(0, 104, 81, 0.10);
+  --primary-glow: rgba(0, 104, 81, 0.28);
   --radius: 18px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #1d1820;
-    --surface: #2a232d;
-    --surface-2: #332a37;
-    --text: #f5eef3;
-    --muted: #b3a5b0;
-    --border: #43384a;
-    --primary: #ff7aa8;
-    --primary-ink: #2a0f1a;
-    --primary-soft: #4a2737;
+    --bg: #0e1b17;
+    --surface: #152822;
+    --surface-2: #1c332c;
+    --text: #e8f2ee;
+    --muted: #9ab5ab;
+    --border: #2b443b;
+    --primary: #3fbf94;
+    --primary-ink: #04221a;
+    --primary-soft: #1d4337;
+    --accent: #faba03;
+    --accent-ink: #2a1e00;
+    --accent-soft: #3d3110;
+    --ok: #4cc27c;
     --shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    --primary-glow: rgba(63, 191, 148, 0.25);
   }
 }
+
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -69,7 +82,7 @@ button, input, select { font: inherit; color: inherit; }
   font-weight: 600; color: var(--muted); cursor: pointer;
   border-bottom: 3px solid transparent;
 }
-.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.tab.active { color: var(--primary); border-bottom-color: var(--accent); }
 
 /* ---------- layout ---------- */
 .view { max-width: 960px; margin: 0 auto; padding: 16px; }
@@ -81,7 +94,7 @@ button, input, select { font: inherit; color: inherit; }
 .step h2 { display: flex; align-items: center; gap: 10px; }
 .step-no {
   width: 28px; height: 28px; border-radius: 50%; display: inline-grid; place-items: center;
-  background: var(--primary); color: var(--primary-ink); font-size: 0.9rem; flex: none;
+  background: var(--accent); color: var(--accent-ink); font-size: 0.9rem; font-weight: 700; flex: none;
 }
 .step-head { margin: 4px 0 12px; }
 .hint { margin: 6px 0 0; font-size: 0.88rem; color: var(--muted); }
@@ -186,7 +199,7 @@ kbd {
   border: 0; border-radius: 14px; padding: 0 18px; height: 48px; cursor: pointer;
   font-weight: 600; white-space: nowrap;
 }
-.btn.primary { background: var(--primary); color: var(--primary-ink); box-shadow: 0 4px 12px rgba(255,111,159,.35); }
+.btn.primary { background: var(--primary); color: var(--primary-ink); box-shadow: 0 4px 12px var(--primary-glow); }
 .btn.primary:disabled { opacity: .5; box-shadow: none; cursor: default; }
 .btn.ghost { background: var(--surface-2); border: 1px solid var(--border); }
 .btn.small { height: 38px; padding: 0 12px; font-size: 0.88rem; border-radius: 10px; }
@@ -197,7 +210,7 @@ dialog {
   border: 0; padding: 0; border-radius: 22px; width: min(480px, calc(100vw - 32px));
   background: var(--surface); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.25);
 }
-dialog::backdrop { background: rgba(40, 20, 35, .45); backdrop-filter: blur(2px); }
+dialog::backdrop { background: rgba(10, 30, 24, .45); backdrop-filter: blur(2px); }
 .dialog-body { padding: 20px; }
 .dialog-body h2 { font-size: 1.25rem; }
 .dialog-actions { display: flex; gap: 8px; margin-top: 16px; }
@@ -254,7 +267,7 @@ dialog::backdrop { background: rgba(40, 20, 35, .45); backdrop-filter: blur(2px)
 /* ---------- toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 100px; transform: translate(-50%, 20px);
-  background: #3a2e39; color: #fff; padding: 12px 18px; border-radius: 14px;
+  background: #17332b; color: #fff; padding: 12px 18px; border-radius: 14px;
   opacity: 0; pointer-events: none; transition: .25s; z-index: 50; max-width: calc(100vw - 32px);
   text-align: center;
 }
@@ -350,7 +363,8 @@ dialog::backdrop { background: rgba(40, 20, 35, .45); backdrop-filter: blur(2px)
 .pack-item:disabled { cursor: default; }
 .pack-code {
   min-width: 56px; height: 56px; padding: 0 8px; border-radius: 14px; display: grid; place-items: center;
-  background: var(--primary-soft); color: var(--primary); font-size: 1.6rem; font-weight: 700;
+  background: var(--accent-soft); color: var(--primary); font-size: 1.6rem; font-weight: 700;
+  border: 2px solid var(--accent);
 }
 .pack-sku { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
 .pack-sku b { font-size: 1.05rem; }
@@ -391,3 +405,4 @@ dialog::backdrop { background: rgba(40, 20, 35, .45); backdrop-filter: blur(2px)
 #packResult { scroll-margin-top: 140px; }
 .pack-hint-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .pack-hint-row .hint { margin: 0; flex: 1; min-width: 0; }
+.pack-order { font-size: 0.8rem; }
