@@ -429,5 +429,6 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 .pack-done-list li span:not(.muted) { font-size: 0.85rem; }
 #packResult:empty { display: none; }
 .brand-title { line-height: 0; }
-.brand-title img { display: block; height: 38px; width: auto; }
+.brand-title img { display: block; height: 28px; width: auto; max-width: 100%; }
+.brand-text { min-width: 0; display: grid; gap: 4px; }
 .tab { line-height: 1.3; }
