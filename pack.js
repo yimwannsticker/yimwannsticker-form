@@ -166,7 +166,7 @@
     if (!o) return showNotFound(text);
     current = o;
     ticked = new Set();
-    renderResult();
+    renderResult(true);
   }
 
   // ---------------- result ----------------
@@ -181,7 +181,7 @@
     $("#packResult").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  function renderResult() {
+  function renderResult(scroll) {
     const o = current;
     const box = $("#packResult");
     if (!o) { box.innerHTML = ""; return; }
@@ -198,7 +198,10 @@
           </div>
           <div class="pack-total">${o.items.length} รายการ<br /><b>${totalSheets}</b> แผ่น</div>
         </div>
-        <p class="hint">${done ? "ไม่ต้องแพ็คซ้ำ ถ้าบันทึกผิดกด “ยกเลิกการแพ็ค”" : "หยิบของทีละรายการ แล้วแตะเพื่อติ๊ก"}</p>
+        <div class="pack-hint-row">
+          <p class="hint">${done ? "ไม่ต้องแพ็คซ้ำ ถ้าบันทึกผิดกด “ยกเลิกการแพ็ค”" : "หยิบของทีละรายการ แล้วแตะเพื่อติ๊ก"}</p>
+          ${done || !o.items.length ? "" : `<button class="btn small ghost" id="packTickAll" type="button">${allTicked ? "ยกเลิกติ๊กทั้งหมด" : "☑️ ติ๊กทุกข้อ"}</button>`}
+        </div>
         <ul class="pack-items">
           ${o.items.map((it, i) => `
             <li>
@@ -221,13 +224,18 @@
         renderResult();
       })
     );
+    const btnAll = $("#packTickAll");
+    if (btnAll) btnAll.addEventListener("click", () => {
+      ticked = allTicked ? new Set() : new Set(o.items.map((_, i) => i));
+      renderResult();
+    });
     const btnDone = $("#packDone");
     if (btnDone) btnDone.addEventListener("click", confirmPacked);
     const btnUndo = $("#packUndo");
     if (btnUndo) btnUndo.addEventListener("click", undoPacked);
     const btnNext = $("#packNext");
     if (btnNext) btnNext.addEventListener("click", () => { current = null; renderResult(); startScan(); });
-    box.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (scroll) box.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function confirmPacked() {
