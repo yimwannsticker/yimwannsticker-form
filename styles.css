@@ -407,3 +407,24 @@ dialog::backdrop { background: rgba(10, 30, 24, .45); backdrop-filter: blur(2px)
 .pack-hint-row .hint { margin: 0; flex: 1; min-width: 0; }
 .pack-order { font-size: 0.8rem; }
 img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var(--border); padding: 2px; }
+
+/* เช็คแพ็คบนจอคอม: ซ้าย = อัปโหลด PDF (แอดมิน), ขวา = สแกน/ความคืบหน้า */
+.pack-side { display: contents; }
+@media (min-width: 900px) {
+  .view.pack-view {
+    display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; align-items: start;
+  }
+  .pack-view > .demo-guide { grid-column: 1 / -1; }
+  .pack-side { display: grid; gap: 16px; grid-column: 2; grid-row: 2; align-content: start; }
+  .pack-view:not(:has(> .demo-guide)) .pack-side { grid-row: 1; }
+  .pack-side > .card, .pack-side > section { margin-bottom: 0; }
+  .pack-admin { grid-column: 1; grid-row: 2; position: sticky; top: 130px; max-height: calc(100vh - 150px); overflow-y: auto; }
+  .pack-view:not(:has(> .demo-guide)) .pack-admin { grid-row: 1; }
+  .pack-admin summary { pointer-events: none; list-style: none; }
+  .pack-admin summary::-webkit-details-marker { display: none; }
+  .pack-admin .file-btn { justify-self: start; width: auto; padding: 0 28px; }
+  .pack-table td { font-size: 0.9rem; }
+  .pack-pending ul { max-height: 320px; overflow-y: auto; }
+}
+.pack-done-list li span:not(.muted) { font-size: 0.85rem; }
+#packResult:empty { display: none; }

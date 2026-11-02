@@ -299,14 +299,23 @@
         <div><b>${mine}</b><span>${employee ? esc(employee) + " แพ็ค" : "ของฉัน"}</span></div>
       </div>
       ${pending.length ? `
-        <details class="pack-pending">
+        <details class="pack-pending" ${wide() ? "open" : ""}>
           <summary>ดูกล่องที่ยังไม่ได้แพ็ค (${pending.length})</summary>
           <ul>${pending
             .slice()
             .sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt))
             .map((o) => `<li><button type="button" data-t="${esc(o.tracking)}">${esc(o.tracking)}</button><span class="muted">${o.items.map((it) => esc(it.code || "?") + "×" + esc(it.qty)).join(", ")}</span></li>`)
             .join("")}</ul>
-        </details>` : `<p class="hint">ไม่มีกล่องค้างแพ็ค 🎉</p>`}`;
+        </details>` : `<p class="hint">ไม่มีกล่องค้างแพ็ค 🎉</p>`}
+      ${doneToday.length ? `
+        <details class="pack-pending pack-done-list" ${wide() ? "open" : ""}>
+          <summary>แพ็คแล้ววันนี้ (${doneToday.length})</summary>
+          <ul>${doneToday
+            .slice()
+            .sort((a, b) => b.packedAt.localeCompare(a.packedAt))
+            .map((o) => `<li><button type="button" data-t="${esc(o.tracking)}">${esc(o.tracking)}</button><span>${esc(o.packedBy)} · ${esc(timeTH(o.packedAt))}</span><span class="muted">${o.items.map((it) => esc(it.code || "?") + "×" + esc(it.qty)).join(", ")}</span></li>`)
+            .join("")}</ul>
+        </details>` : ""}`;
     box.querySelectorAll("[data-t]").forEach((b) => b.addEventListener("click", () => lookup(b.dataset.t)));
   }
 
@@ -366,8 +375,14 @@
     });
   }
 
+  // จอคอม: เปิดส่วนอัปโหลดและรายการไว้เลย
+  function wide() {
+    return window.matchMedia("(min-width: 900px)").matches;
+  }
+
   // ---------------- init ----------------
   renderEmployees();
+  if (wide()) $("#packAdmin").open = true;
   $("#packScanBtn").addEventListener("click", startScan);
   $("#packStopBtn").addEventListener("click", stopScan);
   $("#packManual").addEventListener("submit", (e) => {
