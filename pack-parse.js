@@ -18,9 +18,29 @@
     return s.trim();
   }
 
+  // ฟอนต์ไทยบางตัวใช้รหัส Private Use (F700–F71A) แทนสระ/วรรณยุกต์ที่เลื่อนตำแหน่ง → แปลงกลับเป็นตัวจริง
+  const PUA = "\u0e10\u0e34\u0e35\u0e36\u0e37\u0e48\u0e49\u0e4a\u0e4b\u0e4c\u0e48\u0e49\u0e4a\u0e4b\u0e4c\u0e0d\u0e31\u0e4d\u0e47\u0e48\u0e49\u0e4a\u0e4b\u0e4c\u0e38\u0e39\u0e3a";
+  function fixThai(s) {
+    return String(s).replace(/[\uf700-\uf71a]/g, (c) => PUA[c.charCodeAt(0) - 0xf700]);
+  }
+
+  // เทียบหัวตาราง: ตัดสระบน/ล่าง/วรรณยุกต์ออก เพราะฟอนต์ใน PDF ทำให้หายบ้างไม่หายบ้าง
+  function key(s) {
+    return fixThai(s).trim().replace(/\u0e33/g, "\u0e32").replace(/[\u0e31\u0e34-\u0e3a\u0e47-\u0e4e\s]/g, "");
+  }
+  const H = {
+    name: ["Product Name", key("ชื่อสินค้า")],
+    sku: ["SKU", key("ตัวเลือกสินค้า")],
+    seller: ["Seller SKU"],
+    qty: ["Qty", key("จำนวน")],
+    total: ["Qty Total:", "Qty Total", key("จำนวนรวม")],
+  };
+  for (const k in H) H[k] = H[k].map(key);
+  const isH = (it, k) => H[k].includes(key(it.str));
+
   // ตัดอักขระแปลกจากฟอนต์ใน PDF ออก
   function clean(s) {
-    return String(s).replace(/[\u0000-\u001f\u007f-\u009f\ue000-\uf8ff\ufffd]/g, "").replace(/\s+/g, " ").trim();
+    return fixThai(s).replace(/[\u0000-\u001f\u007f-\u009f\ue000-\uf8ff\ufffd]/g, "").replace(/\s+/g, " ").trim();
   }
 
   function joinLines(lines) {
@@ -60,11 +80,11 @@
   function findOrderId(items) {
     for (let i = 0; i < items.length; i++) {
       const s = items[i].str;
-      const m = s.match(/Order ID:\s*(\d{10,})/);
+      const m = s.match(/Order (?:ID:|No\.?)\s*([A-Z0-9]{10,})/);
       if (m) return m[1];
-      if (/Order ID:\s*$/.test(s)) {
+      if (/Order (?:ID:|No\.?)\s*$/.test(s)) {
         const next = items.slice(i + 1).find((x) => x.str.trim());
-        if (next && /^\d{10,}$/.test(next.str.trim())) return next.str.trim();
+        if (next && /^[A-Z0-9]{10,}$/.test(next.str.trim())) return next.str.trim();
       }
     }
     return "";
@@ -72,9 +92,9 @@
 
   // แยกตารางสินค้าบนหน้าเดียว
   function parseTable(items, cols, pageTop) {
-    const header = items.find((it) => it.str.trim() === "Product Name");
+    const header = items.find((it) => isH(it, "name"));
     const top = header ? header.y - 2 : pageTop;
-    const totalItem = items.find((it) => /^Qty Total:?$/.test(it.str.trim()));
+    const totalItem = items.find((it) => isH(it, "total"));
     const bottom = totalItem ? totalItem.y + 2 : -1;
     let qtyTotal = null;
     if (totalItem) {
@@ -85,12 +105,21 @@
     const qtys = body
       .filter((it) => it.x >= cols.qty - 6 && /^\d+$/.test(it.str.trim()))
       .sort((a, b) => b.y - a.y);
+    // TikTok: จำนวนอยู่บรรทัดแรกของแถว / Shopee: จำนวนอยู่กลางแถว (ชื่อสินค้าคร่อมบน-ล่าง)
+    const centered = qtys.length > 0 && body.some((it) => it.y > qtys[0].y + 2 && it.x < cols.qty - 6);
     const rows = qtys.map((q, i) => {
-      const lower = i + 1 < qtys.length ? qtys[i + 1].y + 2 : bottom;
-      const inRow = body.filter((it) => it.y <= q.y + 2 && it.y > lower);
+      let upper, lower;
+      if (centered) {
+        upper = i > 0 ? (qtys[i - 1].y + q.y) / 2 : top;
+        lower = i + 1 < qtys.length ? (q.y + qtys[i + 1].y) / 2 : bottom;
+      } else {
+        upper = q.y + 2;
+        lower = i + 1 < qtys.length ? qtys[i + 1].y + 2 : bottom;
+      }
+      const inRow = body.filter((it) => it.y <= upper && it.y > lower);
       const pick = (lo, hi) => joinLines(groupLines(inRow.filter((it) => it.x >= lo && it.x < hi)));
       return {
-        name: clean(pick(-1, cols.sku - 2)),
+        name: clean(pick(cols.name - 2, cols.sku - 2)),
         sku: clean(pick(cols.sku - 2, cols.seller - 2)),
         sellerSku: clean(pick(cols.seller - 2, cols.qty - 6)),
         qty: Number(q.str.trim()),
@@ -119,12 +148,18 @@
       const head = {};
       for (const it of items) {
         const s = it.str.trim();
-        if (s === "SKU" && head.sku === undefined) head.sku = it.x;
-        else if (s === "Seller SKU") head.seller = it.x;
-        else if (s === "Qty" && head.qty === undefined) head.qty = it.x;
+        if (isH(it, "name") && head.name === undefined) head.name = it.x;
+        else if (isH(it, "sku") && head.sku === undefined) head.sku = it.x;
+        else if (isH(it, "seller")) head.seller = it.x;
+        else if (isH(it, "qty") && head.qty === undefined) head.qty = it.x;
       }
       if (head.sku !== undefined && head.qty !== undefined) {
-        cols = { sku: head.sku, seller: head.seller !== undefined ? head.seller : head.qty - 40, qty: head.qty };
+        cols = {
+          name: head.name !== undefined ? head.name : -1,
+          sku: head.sku,
+          seller: head.seller !== undefined ? head.seller : head.qty - 6,
+          qty: head.qty,
+        };
       }
 
       const tracking = findTracking(items);
