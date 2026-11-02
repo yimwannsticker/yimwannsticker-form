@@ -83,6 +83,8 @@
       $("#view-record").hidden = view !== "record";
       $("#bottombar").hidden = view !== "record";
       $("#view-history").hidden = view !== "history";
+      $("#view-pack").hidden = view !== "pack";
+      window.dispatchEvent(new CustomEvent("viewchange", { detail: view }));
       if (view === "history") {
         renderHistory();
         if (API) pullRemote();

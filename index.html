@@ -31,6 +31,7 @@
     <nav class="tabs" role="tablist">
       <button class="tab active" data-view="record" role="tab">✏️ บันทึก</button>
       <button class="tab" data-view="history" role="tab">📋 ประวัติ</button>
+      <button class="tab" data-view="pack" role="tab">📦 เช็คแพ็ค</button>
     </nav>
   </header>
 
@@ -120,6 +121,47 @@
       <p class="hint">รายการที่ถูกลบจะมาอยู่ที่นี่ กด "กู้คืน" เพื่อเอากลับไปรวมยอดเหมือนเดิม</p>
       <div id="trashList" class="records"></div>
     </section>
+  </main>
+
+
+  <!-- ===== หน้าเช็คก่อนแพ็ค ===== -->
+  <main id="view-pack" class="view" hidden>
+    <section class="card">
+      <h2>ใครเป็นคนแพ็ค?</h2>
+      <div class="chips-select" id="packEmployeeList"></div>
+    </section>
+
+    <section class="card pack-scan">
+      <button class="btn primary full big" id="packScanBtn" type="button">📷 สแกนใบปะ</button>
+      <p class="hint center">เล็ง <b>QR code</b> บนใบปะให้อยู่ในกรอบ (สแกนง่ายกว่าบาร์โค้ดยาว)</p>
+      <div id="packReader" class="pack-reader" hidden></div>
+      <button class="btn ghost full" id="packStopBtn" type="button" hidden>ปิดกล้อง</button>
+      <form class="pack-manual" id="packManual" autocomplete="off">
+        <input id="packInput" inputmode="text" placeholder="หรือพิมพ์ / ยิงเลขพัสดุ" aria-label="เลขพัสดุ" />
+        <button class="btn ghost" type="submit">ค้นหา</button>
+      </form>
+    </section>
+
+    <section id="packResult"></section>
+
+    <section class="card">
+      <div class="row-between">
+        <h2>ความคืบหน้า</h2>
+        <button class="btn small ghost" id="packRefresh" type="button">🔄 รีเฟรช</button>
+      </div>
+      <div id="packProgress" class="pack-progress"></div>
+    </section>
+
+    <details class="card pack-admin" id="packAdmin">
+      <summary><b>📄 อัปโหลดใบปะ (PDF)</b> <span class="muted">สำหรับแอดมิน ทำก่อนเริ่มแพ็ค</span></summary>
+      <p class="hint">ใน TikTok Seller Center ดาวน์โหลดใบปะแบบ <b>มีรายละเอียดสินค้า</b> ชุดเดียวกับที่จะแพ็ค แล้วเลือกไฟล์ที่นี่
+        (ใบปะที่จะพิมพ์ติดกล่อง ยังใช้แบบไม่มีรายละเอียดเหมือนเดิม)</p>
+      <label class="btn ghost full file-btn">
+        เลือกไฟล์ PDF
+        <input type="file" id="packFile" accept="application/pdf,.pdf" hidden />
+      </label>
+      <div id="packPreview"></div>
+    </details>
   </main>
 
   <!-- กล่องยืนยัน -->
@@ -213,7 +255,7 @@
       s.src = files[0] + "?t=" + Date.now();
       s.onload = function () { load(files.slice(1)); };
       document.body.appendChild(s);
-    })(["config.js", "app.js"]);
+    })(["config.js", "app.js", "pack-parse.js", "pack.js"]);
   </script>
 </body>
 </html>

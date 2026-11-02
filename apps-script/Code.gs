@@ -64,6 +64,7 @@ function json_(obj) {
 
 function doGet(e) {
   try {
+    if (e && e.parameter && e.parameter.action === 'pack_list') return json_(packList_());
     const records = readRows_(getSheet_(), HEADER.length).map(toRecord_);
     const trash = readRows_(getSheet_(TRASH_NAME, TRASH_HEADER), TRASH_HEADER.length).map(r => {
       const rec = toRecord_(r);
@@ -116,6 +117,10 @@ function doPost(e) {
       return json_({ ok: true });
     }
 
+    if (body.action === 'pack_upload') return json_(packUpload_(body));
+    if (body.action === 'pack_done') return json_(packDone_(body));
+    if (body.action === 'pack_undo') return json_(packUndo_(body));
+
     return json_({ ok: false, error: 'unknown action' });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
@@ -132,4 +137,87 @@ function findRow_(sh, id) {
     if (String(ids[i][0]) === String(id)) return i + 2;
   }
   return 0;
+}
+
+// ================= เช็คก่อนแพ็ค =================
+// แต่ละแถว = 1 กล่อง (1 เลขพัสดุ) อ่านมาจาก PDF ใบปะหน้าแบบมีรายละเอียดสินค้า
+
+const PACK_NAME = 'เช็คแพ็ค';
+const PACK_HEADER = ['เลขพัสดุ', 'Order ID', 'รายการ', 'จำนวนรวม (แผ่น)', 'อัปโหลดเมื่อ', 'อัปโหลดโดย',
+  'แพ็คโดย', 'แพ็คเมื่อ', 'ข้อมูล (JSON)'];
+const PACK_DAYS = 14; // ส่งรายการย้อนหลังกี่วันให้แอพ
+
+function packSheet_() {
+  return getSheet_(PACK_NAME, PACK_HEADER);
+}
+
+function packRows_(sh) {
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  return sh.getRange(2, 1, last - 1, PACK_HEADER.length).getValues();
+}
+
+function packFind_(sh, tracking) {
+  const last = sh.getLastRow();
+  if (last < 2 || !tracking) return 0;
+  const ids = sh.getRange(2, 1, last - 1, 1).getValues();
+  for (let i = ids.length - 1; i >= 0; i--) {
+    if (String(ids[i][0]) === String(tracking)) return i + 2;
+  }
+  return 0;
+}
+
+function packList_() {
+  const since = Date.now() - PACK_DAYS * 864e5;
+  const orders = [];
+  packRows_(packSheet_()).forEach(r => {
+    if (!r[0]) return;
+    const uploaded = new Date(r[4]);
+    if (uploaded.getTime() < since && r[6]) return;
+    let items = [];
+    try { items = JSON.parse(r[8] || '[]'); } catch (err) {}
+    orders.push({
+      tracking: String(r[0]),
+      orderId: String(r[1]),
+      qty: Number(r[3]) || 0,
+      items: items,
+      uploadedAt: uploaded.toISOString(),
+      packedBy: String(r[6] || ''),
+      packedAt: r[7] ? new Date(r[7]).toISOString() : '',
+    });
+  });
+  return { ok: true, orders: orders };
+}
+
+function packUpload_(body) {
+  const sh = packSheet_();
+  let added = 0, skipped = 0;
+  (body.orders || []).forEach(o => {
+    if (!o.tracking) return;
+    if (packFind_(sh, o.tracking)) { skipped++; return; }
+    const items = (o.items || []).map(it => ({ code: it.code || '', sku: it.sku || '', sellerSku: it.sellerSku || '', name: it.name || '', qty: Number(it.qty) || 0 }));
+    const text = items.map(it => (it.sellerSku || it.sku) + ' ×' + it.qty).join(' | ');
+    const qty = items.reduce((a, b) => a + b.qty, 0);
+    sh.appendRow([String(o.tracking), "'" + String(o.orderId || ''), text, qty, new Date(), body.by || '', '', '', JSON.stringify(items)]);
+    added++;
+  });
+  return { ok: true, added: added, skipped: skipped };
+}
+
+function packDone_(body) {
+  const sh = packSheet_();
+  const row = packFind_(sh, body.tracking);
+  if (!row) return { ok: false, error: 'ไม่พบเลขพัสดุนี้' };
+  const cur = sh.getRange(row, 7, 1, 2).getValues()[0];
+  if (cur[0]) return { ok: true, already: true, packedBy: String(cur[0]), packedAt: new Date(cur[1]).toISOString() };
+  sh.getRange(row, 7, 1, 2).setValues([[body.by || '', new Date()]]);
+  return { ok: true };
+}
+
+function packUndo_(body) {
+  const sh = packSheet_();
+  const row = packFind_(sh, body.tracking);
+  if (!row) return { ok: true, missing: true };
+  sh.getRange(row, 7, 1, 2).clearContent();
+  return { ok: true };
 }
