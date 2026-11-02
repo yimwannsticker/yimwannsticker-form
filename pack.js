@@ -85,6 +85,7 @@
         employee = name;
         try { localStorage.setItem(LS_EMP, JSON.stringify(name)); } catch {}
         renderEmployees();
+        renderProgress();
       });
       box.appendChild(b);
     });

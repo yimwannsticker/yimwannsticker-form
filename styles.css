@@ -120,8 +120,8 @@ kbd {
 }
 
 /* ---------- materials ---------- */
-.materials { display: grid; gap: 16px; }
-@media (min-width: 760px) { .materials { grid-template-columns: 1fr 1fr; } }
+.materials { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .materials { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .material {
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
   box-shadow: var(--shadow); overflow: hidden;
@@ -135,8 +135,8 @@ kbd {
 .material-head h3 { font-size: 1.05rem; font-weight: 600; display: flex; gap: 8px; align-items: center; }
 .material-sum { font-size: 0.85rem; color: var(--muted); }
 .material-sum b { color: var(--text); font-size: 1rem; }
-.variants { display: grid; grid-template-columns: 1fr; }
-@media (min-width: 420px) { .variants { grid-template-columns: 1fr 1fr; } }
+.variants { display: grid; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 420px) { .variants { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .variant { padding: 12px 14px 14px; }
 .variant + .variant { border-top: 1px dashed var(--border); }
 @media (min-width: 420px) {
@@ -406,3 +406,4 @@ dialog::backdrop { background: rgba(10, 30, 24, .45); backdrop-filter: blur(2px)
 .pack-hint-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .pack-hint-row .hint { margin: 0; flex: 1; min-width: 0; }
 .pack-order { font-size: 0.8rem; }
+img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var(--border); padding: 2px; }
