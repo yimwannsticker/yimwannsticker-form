@@ -64,6 +64,11 @@
       const data = await res.json();
       if (!data.ok || !Array.isArray(data.orders)) throw new Error();
       orders = data.orders;
+      // รายการที่บันทึกแล้วแต่ยังส่งขึ้นชีตไม่ถึง ให้นับว่าแพ็คแล้ว
+      for (const job of queue) {
+        const o = orders.find((x) => x.tracking === job.tracking);
+        if (o && !o.packedBy) { o.packedBy = job.by; o.packedAt = new Date().toISOString(); }
+      }
       loadedAt = Date.now();
       renderProgress();
       if (showToast) toast("อัปเดตแล้ว");
@@ -103,8 +108,18 @@
   }
 
   // ---------------- scan ----------------
+  // กล้องเปิดค้างไว้ระหว่างแพ็ค: สแกนแล้วแค่ "พัก" การอ่าน ไม่ปิดกล้อง → กล่องถัดไปสแกนต่อได้ทันที
+  let scanPaused = false;
+  let lastCode = "";
+  let lastCodeAt = 0;
+
+  function preloadScanner() {
+    loadScript(SCANNER).catch(() => {});
+  }
+
   async function startScan() {
     if (needEmployee()) return;
+    if (scanner) { resumeScan(); return; }
     $("#packScanBtn").disabled = true;
     try {
       await loadScript(SCANNER);
@@ -112,19 +127,21 @@
       $("#packReader").hidden = false;
       $("#packStopBtn").hidden = false;
       $("#packScanBtn").hidden = true;
+      scanPaused = false;
       scanner = new window.Html5Qrcode("packReader", {
-        formatsToSupport: [F.CODE_128, F.CODE_39, F.QR_CODE],
+        // อ่านเฉพาะ QR code (เร็วกว่าอ่านหลายแบบพร้อมกันมาก) บาร์โค้ดใช้ช่องพิมพ์/เครื่องยิงแทน
+        formatsToSupport: [F.QR_CODE],
         experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         verbose: false,
       });
       await scanner.start(
         { facingMode: "environment" },
-        { fps: 12, qrbox: (w, h) => { const side = Math.floor(Math.min(w * 0.8, h * 0.8)); return { width: side, height: side }; } },
-        (text) => {
-          if (navigator.vibrate) navigator.vibrate(80);
-          stopScan();
-          lookup(text);
+        {
+          fps: 20,
+          qrbox: (w, h) => { const side = Math.floor(Math.min(w, h) * 0.7); return { width: side, height: side }; },
+          videoConstraints: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
         },
+        onCode,
         () => {}
       );
     } catch (err) {
@@ -136,11 +153,37 @@
     }
   }
 
+  function onCode(text) {
+    if (scanPaused) return;
+    const t = String(text || "").trim();
+    // ใบปะกล่องที่เพิ่งสแกนยังอยู่หน้ากล้อง → ไม่เปิดซ้ำจนกว่าจะสแกนใบอื่น
+    if (t === lastCode) return;
+    lastCode = t;
+    lastCodeAt = Date.now();
+    if (navigator.vibrate) navigator.vibrate(80);
+    pauseScan();
+    lookup(t);
+  }
+
+  function pauseScan() {
+    scanPaused = true;
+    $("#packReader").classList.add("paused");
+  }
+
+  function resumeScan() {
+    if (!scanner) return;
+    scanPaused = false;
+    $("#packReader").classList.remove("paused");
+    $("#packReader").scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   function stopScan() {
     const s = scanner;
     scanner = null;
+    scanPaused = false;
     if (s) s.stop().catch(() => {}).finally(() => s.clear && s.clear());
     $("#packReader").hidden = true;
+    $("#packReader").classList.remove("paused");
     $("#packStopBtn").hidden = true;
     $("#packScanBtn").hidden = false;
   }
@@ -180,6 +223,8 @@
         <p class="hint">อาจยังไม่ได้อัปโหลด PDF ชุดนี้ หรือสแกนผิดโค้ด (สแกน QR code หรือบาร์โค้ดใหญ่ของใบปะ) อย่าเพิ่งแพ็ค ให้แจ้งแอดมิน</p>
       </div>`;
     $("#packResult").scrollIntoView({ behavior: "smooth", block: "start" });
+    lastCode = "";
+    setTimeout(resumeScan, 1200);
   }
 
   function renderResult(scroll) {
@@ -220,7 +265,8 @@
         </ul>
         ${done
           ? `<div class="dialog-actions"><button class="btn ghost" id="packNext" type="button">สแกนกล่องถัดไป</button><button class="btn danger" id="packUndo" type="button">ยกเลิกการแพ็ค</button></div>`
-          : `<button class="btn primary full big" id="packDone" type="button" ${allTicked ? "" : "disabled"}>${allTicked ? "✅ ครบแล้ว บันทึกการแพ็ค" : `ติ๊กให้ครบก่อน (${ticked.size}/${o.items.length})`}</button>`}
+          : `<button class="btn primary full big" id="packDone" type="button" ${allTicked ? "" : "disabled"}>${allTicked ? "✅ ครบแล้ว บันทึกการแพ็ค" : `ติ๊กให้ครบก่อน (${ticked.size}/${o.items.length})`}</button>
+             <button class="btn ghost full pack-skip" id="packCancel" type="button">ยังไม่แพ็คกล่องนี้ สแกนกล่องอื่น</button>`}
       </div>`;
     box.querySelectorAll(".pack-item").forEach((b) =>
       b.addEventListener("click", () => {
@@ -241,36 +287,60 @@
     if (btnUndo) btnUndo.addEventListener("click", undoPacked);
     const btnNext = $("#packNext");
     if (btnNext) btnNext.addEventListener("click", () => { current = null; renderResult(); startScan(); });
+    const btnCancel = $("#packCancel");
+    if (btnCancel) btnCancel.addEventListener("click", () => { current = null; renderResult(); startScan(); });
     if (scroll) box.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  async function confirmPacked() {
+  // บันทึกแบบไม่ต้องรอชีต: ขึ้นว่าบันทึกแล้วทันที แล้วส่งขึ้นชีตเบื้องหลัง (ส่งไม่ผ่านจะเก็บไว้ส่งใหม่)
+  const LS_QUEUE = "pack_queue_v1";
+  let queue = [];
+  try { queue = JSON.parse(localStorage.getItem(LS_QUEUE)) || []; } catch {}
+  let flushing = false;
+  const saveQueue = () => { try { localStorage.setItem(LS_QUEUE, JSON.stringify(queue)); } catch {} };
+
+  async function flushQueue() {
+    if (flushing || !queue.length) return;
+    flushing = true;
+    try {
+      while (queue.length) {
+        const job = queue[0];
+        let res;
+        try {
+          res = await post({ action: "pack_done", tracking: job.tracking, by: job.by });
+        } catch (err) {
+          if (/ไม่พบเลขพัสดุ/.test(err.message)) { queue.shift(); saveQueue(); continue; }
+          setTimeout(flushQueue, 8000);
+          break;
+        }
+        queue.shift();
+        saveQueue();
+        if (res.already && res.packedBy !== job.by) {
+          const o = orders.find((x) => x.tracking === job.tracking);
+          if (o) { o.packedBy = res.packedBy; o.packedAt = res.packedAt; }
+          toast(`⚠️ ${job.tracking} ถูก ${res.packedBy} บันทึกไปก่อนแล้ว`);
+          renderProgress();
+        }
+      }
+    } finally {
+      flushing = false;
+    }
+  }
+
+  function confirmPacked() {
     if (needEmployee() || !current) return;
     const o = current;
-    const btn = $("#packDone");
-    btn.disabled = true;
-    btn.textContent = "กำลังบันทึก…";
-    try {
-      const res = await post({ action: "pack_done", tracking: o.tracking, by: employee });
-      if (res.already) {
-        o.packedBy = res.packedBy;
-        o.packedAt = res.packedAt;
-        renderResult();
-        toast(`กล่องนี้ ${res.packedBy} บันทึกไปแล้ว`);
-        return;
-      }
-      o.packedBy = employee;
-      o.packedAt = new Date().toISOString();
-      current = null;
-      renderResult();
-      renderProgress();
-      toast(`✅ บันทึกแล้ว ${o.tracking}`);
-      $("#packInput").focus();
-    } catch (err) {
-      btn.disabled = false;
-      btn.textContent = "✅ ครบแล้ว บันทึกการแพ็ค";
-      toast("บันทึกไม่สำเร็จ: " + err.message);
-    }
+    o.packedBy = employee;
+    o.packedAt = new Date().toISOString();
+    queue.push({ tracking: o.tracking, by: employee });
+    saveQueue();
+    flushQueue();
+    current = null;
+    renderResult();
+    renderProgress();
+    toast(`✅ บันทึกแล้ว ${o.tracking}`);
+    if (scanner) resumeScan();
+    else $("#packInput").focus();
   }
 
   async function undoPacked() {
@@ -402,6 +472,8 @@
   });
   window.addEventListener("viewchange", (e) => {
     if (e.detail === "pack") {
+      preloadScanner();
+      flushQueue();
       renderEmployees();
       pull();
     } else if (scanner) stopScan();

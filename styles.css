@@ -438,3 +438,5 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 .pack-item.note .pack-sku .muted { white-space: normal; }
 .pack-item.note.on { border-style: solid; border-color: var(--ok); }
 .pack-note-text { color: var(--text); }
+.pack-reader.paused { height: 0; overflow: hidden; }
+.pack-skip { margin-top: 10px; }
