@@ -488,3 +488,4 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 .sales-bar-tier span { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); margin-top: 3px; font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
 .sales-cheer { background: var(--accent-soft); color: var(--text); border: 1px solid var(--accent); border-radius: 12px; padding: 8px 12px; font-weight: 600; }
 .sales-bar:has(.sales-bar-tier) { margin-bottom: 14px; }
+.sales-sync { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 8px; }

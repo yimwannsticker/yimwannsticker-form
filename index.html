@@ -138,15 +138,14 @@
       <div id="salesList" class="sales-list"></div>
     </section>
     <details class="card sales-admin" id="salesAdmin">
-      <summary><b>⚙️ อัปเดตยอดขาย / ตั้งเป้า</b> <span class="muted">สำหรับแอดมิน</span></summary>
-      <h3 class="sales-sub">อัปโหลดไฟล์สรุปยอดขาย (CSV)</h3>
-      <p class="hint">ใช้ไฟล์เดียวกับที่ใส่ใน Sales Dashboard (เช่น <b>october_2026_full_month.csv</b>) เลือกได้หลายไฟล์พร้อมกัน
-        ระบบเก็บแค่ยอดรวมของแต่ละเดือน ไม่เก็บชื่อหรือข้อมูลลูกค้า อัปไฟล์เดือนเดิมซ้ำได้ ยอดจะถูกแทนที่</p>
-      <label class="btn ghost full file-btn">
-        เลือกไฟล์ CSV
-        <input type="file" id="salesFile" accept=".csv,text/csv" multiple hidden />
-      </label>
-      <div id="salesPreview"></div>
+      <summary><b>⚙️ ที่มาของยอด / ตั้งเป้า</b> <span class="muted">สำหรับแอดมิน</span></summary>
+      <h3 class="sales-sub">ที่มาของยอดขาย</h3>
+      <p class="hint">ระบบดึงยอดจากไฟล์สรุปยอดขายรายเดือน (<b>…_full_month.csv</b>) ในโฟลเดอร์ <b>sales-dashboard › data</b> ของ Google Drive ร้านให้อัตโนมัติ
+        ทุกครั้งที่มีคนเปิดแท็บนี้ (เช็คไฟล์ใหม่ทุก 10 นาที) ไม่ต้องอัปโหลดเอง</p>
+      <div class="sales-sync">
+        <span id="salesSyncInfo" class="muted"></span>
+        <button class="btn small ghost" id="salesSyncNow" type="button">⟳ ดึงจาก Drive ตอนนี้</button>
+      </div>
       <h3 class="sales-sub">ตั้งเป้ายอดขาย</h3>
       <form class="sales-target" id="salesTargetForm" autocomplete="off">
         <label><span>เดือน</span><select id="salesTargetMonth"></select></label>
@@ -289,7 +288,7 @@
       s.src = files[0] + "?t=" + Date.now();
       s.onload = function () { load(files.slice(1)); };
       document.body.appendChild(s);
-    })(["config.js", "app.js", "pack-parse.js", "pack.js", "sales-parse.js", "sales.js"]);
+    })(["config.js", "app.js", "pack-parse.js", "pack.js", "sales.js"]);
   </script>
 </body>
 </html>

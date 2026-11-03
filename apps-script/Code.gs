@@ -65,7 +65,7 @@ function json_(obj) {
 function doGet(e) {
   try {
     if (e && e.parameter && e.parameter.action === 'pack_list') return json_(packList_());
-    if (e && e.parameter && e.parameter.action === 'sales_list') return json_(salesList_());
+    if (e && e.parameter && e.parameter.action === 'sales_list') return json_(salesList_(e.parameter.force === '1'));
     const records = readRows_(getSheet_(), HEADER.length).map(toRecord_);
     const trash = readRows_(getSheet_(TRASH_NAME, TRASH_HEADER), TRASH_HEADER.length).map(r => {
       const rec = toRecord_(r);
@@ -245,7 +245,9 @@ function salesFind_(sh, month) {
   return 0;
 }
 
-function salesList_() {
+function salesList_(force) {
+  let sync = null;
+  try { sync = salesSyncFromDrive_(force); } catch (err) { sync = { error: String(err) }; }
   const sh = salesSheet_();
   const last = sh.getLastRow();
   const months = [];
@@ -259,7 +261,8 @@ function salesList_() {
     });
   }
   months.sort((a, b) => a.month < b.month ? -1 : 1);
-  return { ok: true, months: months };
+  const props = PropertiesService.getScriptProperties();
+  return { ok: true, months: months, syncedAt: props.getProperty('SALES_SYNCED_AT') || '', sync: sync };
 }
 
 function salesUpsert_(body) {
@@ -292,4 +295,60 @@ function salesTarget_(body) {
   sh.getRange(row, 5).setValue(Number(body.target) || '');
   sh.getRange(row, 6, 1, 2).setValues([[new Date(), body.by || '']]);
   return { ok: true };
+}
+
+// ---------- ดึงยอดขายจาก Google Drive อัตโนมัติ ----------
+// อ่านไฟล์สรุปยอดขายรายเดือน (*full_month*.csv) ในโฟลเดอร์ sales-dashboard/data
+// อ่านใหม่เฉพาะไฟล์ที่เปลี่ยน และเช็คโฟลเดอร์อย่างมากทุก 10 นาที
+
+const SALES_FOLDER_ID = '1RlF400ua4edfipIlRO_ExvbFp0IZpFd0';
+const SALES_SYNC_EVERY_MIN = 10;
+
+function salesSyncFromDrive_(force) {
+  const props = PropertiesService.getScriptProperties();
+  const last = Number(props.getProperty('SALES_SYNC_TS') || 0);
+  if (!force && Date.now() - last < SALES_SYNC_EVERY_MIN * 60000) return { skipped: true };
+  props.setProperty('SALES_SYNC_TS', String(Date.now()));
+
+  let seen = {};
+  try { seen = JSON.parse(props.getProperty('SALES_FILES') || '{}'); } catch (err) {}
+  const sh = salesSheet_();
+  const it = DriveApp.getFolderById(SALES_FOLDER_ID).getFiles();
+  const latest = {}; // เดือน → ไฟล์ล่าสุดของเดือนนั้น
+  while (it.hasNext()) {
+    const f = it.next();
+    const name = f.getName();
+    if (!/full_month/i.test(name) || !/\.csv$/i.test(name)) continue;
+    const key = f.getId();
+    const stamp = String(f.getLastUpdated().getTime());
+    if (!force && seen[key] === stamp) continue;
+    const r = salesParseCsv_(f.getBlob().getDataAsString('UTF-8'));
+    seen[key] = stamp;
+    if (!r) continue;
+    if (!latest[r.month] || latest[r.month].stamp < stamp) latest[r.month] = { r: r, stamp: stamp };
+  }
+  const months = Object.keys(latest).map(k => latest[k].r);
+  if (months.length) salesUpsert_({ by: 'Google Drive (อัตโนมัติ)', months: months });
+  props.setProperty('SALES_FILES', JSON.stringify(seen));
+  props.setProperty('SALES_SYNCED_AT', new Date().toISOString());
+  return { updated: months.map(m => m.month) };
+}
+
+function salesParseCsv_(text) {
+  const rows = Utilities.parseCsv(String(text).replace(/^\uFEFF/, ''));
+  let month = '', gross = null, orders = 0;
+  const channels = {};
+  rows.forEach(r => {
+    const m = String(r[0] || '').match(/(\d{4}-\d{2})-\d{2}\s+to\s+\d{4}-\d{2}-\d{2}/);
+    if (m && !month) month = m[1];
+    const label = String(r[4] || '').trim();
+    const g = Number(String(r[6] || '').replace(/,/g, ''));
+    if (/Subtotal$/i.test(label) && g) channels[label.replace(/\s+Subtotal$/i, '').replace(/\s*-\s*/g, ' ')] = g;
+    if (/^GRAND TOTAL$/i.test(label) && isFinite(g)) gross = g;
+    const o = String(r[0] || '').match(/^Total orders:\s*(\d+)/i);
+    if (o) orders = Number(o[1]);
+  });
+  if (!month) return null;
+  if (gross === null) gross = Object.keys(channels).reduce((a, k) => a + channels[k], 0);
+  return { month: month, gross: Math.round(gross * 100) / 100, orders: orders, channels: channels };
 }

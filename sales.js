@@ -17,7 +17,6 @@
   const ymOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
   let months = []; // [{month, gross, orders, channels, target}]
-  let parsed = []; // ผลอ่าน CSV ที่ยังไม่ได้ส่ง
 
   function toast(msg) {
     const el = $("#toast");
@@ -42,14 +41,18 @@
     return data;
   }
 
-  async function pull(showToast) {
+  async function pull(showToast, force) {
     if (!API) { $("#salesNow").innerHTML = `<p class="hint">ยังไม่ได้ตั้งค่า Google Sheet</p>`; return; }
     try {
-      const res = await fetch(`${API}?action=sales_list`);
+      const res = await fetch(`${API}?action=sales_list${force ? "&force=1" : ""}`);
       const data = await res.json();
       if (!data.ok || !Array.isArray(data.months)) throw new Error();
       months = data.months;
       applyDefaultTarget();
+      const t = data.syncedAt ? new Date(data.syncedAt) : null;
+      $("#salesSyncInfo").textContent = data.sync && data.sync.error
+        ? "ดึงจาก Drive ไม่สำเร็จ: " + data.sync.error
+        : t ? `ดึงจาก Drive ล่าสุด ${t.toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "";
       render();
       if (showToast) toast("อัปเดตแล้ว");
     } catch {
@@ -99,7 +102,7 @@
     // การ์ดบน: เดือนนี้ (ถ้ามียอดหรือมีเป้า) ไม่งั้นแสดงเดือนล่าสุดที่มียอด
     const show = cur && (cur.gross > 0 || cur.target > 0) ? cur : latest;
     if (!show) {
-      box.innerHTML = `<h2>ยอดขาย</h2><p class="hint">ยังไม่มีข้อมูลยอดขาย แอดมินอัปไฟล์สรุปยอดขายได้ที่ “อัปเดตยอดขาย / ตั้งเป้า” ด้านล่าง</p>`;
+      box.innerHTML = `<h2>ยอดขาย</h2><p class="hint">ยังไม่มีข้อมูลยอดขาย ระบบดึงจากไฟล์สรุปยอดขายใน Google Drive (โฟลเดอร์ sales-dashboard › data)</p>`;
     } else {
       const isCur = show.month === thisMonth;
       const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
@@ -120,7 +123,7 @@
           </div>
           ${isCur ? `<p class="hint">ขีดสีเขียวบนแถบ = ยอดที่ควรถึงภายในวันนี้ (วันที่ ${now.getDate()} จาก ${daysInMonth} วัน)</p>` : ""}`
         : `<p class="hint">ยังไม่ได้ตั้งเป้าของเดือนนี้</p>`}
-        ${isCur && !(show.gross > 0) ? `<p class="hint">ยอดเดือนนี้จะขึ้นเมื่อแอดมินอัปไฟล์สรุปยอดขาย</p>` : ""}`;
+        ${isCur && !(show.gross > 0) ? `<p class="hint">ยอดเดือนนี้จะขึ้นเมื่อมีไฟล์สรุปยอดขายของเดือนนี้ใน Google Drive</p>` : ""}`;
     }
 
     // รายการย้อนหลัง (ใหม่ → เก่า)
@@ -142,60 +145,6 @@
       : `<p class="hint">ยังไม่มีข้อมูล</p>`;
 
     renderTargetMonths();
-  }
-
-  // ---------------- admin: upload CSV ----------------
-  async function readFiles(files) {
-    const prev = $("#salesPreview");
-    parsed = [];
-    const errors = [];
-    for (const f of files) {
-      try {
-        const r = window.SalesParse.parseSalesCsv(await f.text());
-        if (r.error) errors.push(`${f.name}: ${r.error}`);
-        else parsed.push(r);
-      } catch (err) {
-        errors.push(`${f.name}: อ่านไม่ได้`);
-      }
-    }
-    // เดือนเดียวกันหลายไฟล์ → ใช้ไฟล์ที่ครอบคลุมช่วงยาวกว่า
-    const byMonth = {};
-    for (const r of parsed) if (!byMonth[r.month] || r.to > byMonth[r.month].to) byMonth[r.month] = r;
-    parsed = Object.values(byMonth).sort((a, b) => (a.month < b.month ? -1 : 1));
-    const existing = Object.fromEntries(months.map((m) => [m.month, m]));
-    prev.innerHTML = `
-      ${errors.length ? `<div class="pack-warn">⚠️ ${errors.map(esc).join("<br />")}</div>` : ""}
-      ${parsed.length ? `
-        <div class="table-wrap"><table class="sum-table sales-table">
-          <thead><tr><th>เดือน</th><th>ยอดขาย</th><th>ออเดอร์</th><th></th></tr></thead>
-          <tbody>${parsed.map((r) => {
-            const old = existing[r.month];
-            const note = r.partial ? `ถึง ${Number(r.to.slice(8))} ${TH_MONTH[Number(r.to.slice(5, 7)) - 1]}` : old && old.gross > 0 ? (Math.round(old.gross) === Math.round(r.gross) ? "เหมือนเดิม" : `แทนที่ ${baht(old.gross)}`) : "ใหม่";
-            return `<tr><td>${esc(monthLabel(r.month))}</td><td>${baht(r.gross)}</td><td>${r.orders.toLocaleString("th-TH")}</td><td class="muted">${esc(note)}</td></tr>`;
-          }).join("")}</tbody>
-        </table></div>
-        <button class="btn primary full" id="salesUpload" type="button">ส่งยอดขาย ${parsed.length} เดือนขึ้นระบบ</button>` : ""}`;
-    const btn = $("#salesUpload");
-    if (btn) btn.addEventListener("click", upload);
-  }
-
-  async function upload() {
-    const btn = $("#salesUpload");
-    btn.disabled = true;
-    btn.textContent = "กำลังส่ง…";
-    try {
-      const by = currentName();
-      const res = await post({ action: "sales_upsert", by, months: parsed.map(({ month, gross, orders, channels }) => ({ month, gross, orders, channels })) });
-      toast(`อัปเดตแล้ว ${res.added + res.updated} เดือน`);
-      parsed = [];
-      $("#salesPreview").innerHTML = `<p class="hint">✅ อัปเดตยอดขายเรียบร้อย</p>`;
-      $("#salesFile").value = "";
-      await pull();
-    } catch (err) {
-      btn.disabled = false;
-      btn.textContent = "ส่งยอดขายขึ้นระบบ";
-      toast("ส่งไม่สำเร็จ: " + err.message);
-    }
   }
 
   function currentName() {
@@ -246,7 +195,13 @@
 
   // ---------------- init ----------------
   $("#salesRefresh").addEventListener("click", () => pull(true));
-  $("#salesFile").addEventListener("change", (e) => { if (e.target.files.length) readFiles([...e.target.files]); });
+  $("#salesSyncNow").addEventListener("click", async (e) => {
+    e.target.disabled = true;
+    e.target.textContent = "กำลังดึง…";
+    await pull(true, true);
+    e.target.disabled = false;
+    e.target.textContent = "⟳ ดึงจาก Drive ตอนนี้";
+  });
   $("#salesTargetMonth").addEventListener("change", fillTarget);
   $("#salesTargetForm").addEventListener("submit", saveTarget);
   renderTargetMonths();
