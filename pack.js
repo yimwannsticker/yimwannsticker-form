@@ -81,7 +81,7 @@
   function renderEmployees() {
     const box = $("#packEmployeeList");
     box.innerHTML = "";
-    CFG.EMPLOYEES.forEach((name) => {
+    (CFG.PACKERS || CFG.EMPLOYEES).forEach((name) => {
       const b = document.createElement("button");
       b.type = "button";
       b.className = "emp" + (name === employee ? " selected" : "");
