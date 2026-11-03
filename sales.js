@@ -60,23 +60,30 @@
 
   // เป้ากลางจาก config: ใช้กับเดือนที่ยังไม่ได้ตั้งเป้าเอง ตั้งแต่ SALES_TARGET_FROM เป็นต้นไป
   function applyDefaultTarget() {
-    const def = Number(CFG.SALES_TARGET) || 0;
+    const tiers = [].concat(CFG.SALES_TARGET || []).map(Number).filter((n) => n > 0).sort((a, b) => a - b);
     const from = CFG.SALES_TARGET_FROM || "0000-00";
-    if (!def) return;
+    if (!tiers.length) return;
     const thisMonth = ymOf(new Date());
     if (thisMonth >= from && !months.some((m) => m.month === thisMonth)) months.push({ month: thisMonth, gross: 0, orders: 0, channels: {}, target: 0 });
-    for (const m of months) if (!(m.target > 0) && m.month >= from) { m.target = def; m.defaultTarget = true; }
+    for (const m of months) {
+      if (m.target > 0 || m.month < from) continue;
+      // เป้าปัจจุบัน = ขั้นแรกที่ยังไม่ถึง (ถึงทุกขั้นแล้ว = ขั้นสุดท้าย)
+      m.target = tiers.find((t) => m.gross < t) || tiers[tiers.length - 1];
+      m.passed = tiers.filter((t) => t < m.target);
+      m.defaultTarget = true;
+    }
     months.sort((a, b) => (a.month < b.month ? -1 : 1));
   }
 
   // ---------------- staff view ----------------
-  function progressBar(gross, target, paceRatio) {
+  function progressBar(gross, target, paceRatio, passed) {
     const pct = target > 0 ? (gross / target) * 100 : 0;
     const shown = Math.min(pct, 100);
     const pace = paceRatio != null ? Math.min(paceRatio * 100, 100) : null;
     return `
       <div class="sales-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}">
         <div class="sales-bar-fill ${pct >= 100 ? "done" : ""}" style="width:${shown}%"></div>
+        ${(passed || []).map((t) => `<div class="sales-bar-tier" style="left:${(t / target) * 100}%"><span>${(t / 1000).toLocaleString("th-TH")}K</span></div>`).join("")}
         ${pace != null && pct < 100 ? `<div class="sales-bar-pace" style="left:${pace}%" title="ควรถึงวันนี้"></div>` : ""}
       </div>`;
   }
@@ -105,7 +112,8 @@
         </div>
         <div class="sales-big">${baht(show.gross)}</div>
         ${show.target > 0 ? `
-          ${progressBar(show.gross, show.target, pace)}
+          ${show.passed && show.passed.length ? `<div class="sales-cheer">🎉 ทะลุเป้า ${baht(show.passed[show.passed.length - 1])} แล้ว! เป้าใหม่ ${baht(show.target)}</div>` : ""}
+          ${progressBar(show.gross, show.target, pace, show.passed)}
           <div class="sales-meta">
             <span><b>${pct}%</b> ของเป้า ${baht(show.target)}</span>
             <span>${left > 0 ? `อีก ${baht(left)}` : "🎉 ถึงเป้าแล้ว"}</span>
@@ -128,7 +136,7 @@
               <div class="sales-fill ${pct != null && pct >= 100 ? "done" : ""}" style="width:${(m.gross / max) * 100}%"></div>
               ${m.target > 0 ? `<div class="sales-target-mark" style="left:${(m.target / max) * 100}%" title="เป้า ${baht(m.target)}"></div>` : ""}
             </div>
-            <span class="sales-val">${baht(m.gross)}${pct != null ? `<small class="${pct >= 100 ? "ok" : ""}">${pct >= 100 ? "✓ ถึงเป้า" : pct + "% ของเป้า"}</small>` : ""}</span>
+            <span class="sales-val">${baht(m.gross)}${pct != null ? `<small class="${pct >= 100 || (m.passed && m.passed.length) ? "ok" : ""}">${pct >= 100 ? "✓ ถึงเป้า" : m.passed && m.passed.length ? `✓ ทะลุ ${Math.round(m.passed[m.passed.length - 1] / 1000)}K · ${pct}% ของ ${Math.round(m.target / 1000)}K` : pct + "% ของเป้า"}</small>` : ""}</span>
           </div>`;
         }).join("")
       : `<p class="hint">ยังไม่มีข้อมูล</p>`;
@@ -214,7 +222,8 @@
   function fillTarget() {
     const m = months.find((x) => x.month === $("#salesTargetMonth").value);
     $("#salesTargetValue").value = m && m.target && !m.defaultTarget ? String(m.target) : "";
-    $("#salesTargetValue").placeholder = CFG.SALES_TARGET ? `ค่าปกติ ${Number(CFG.SALES_TARGET).toLocaleString("th-TH")}` : "เช่น 250000";
+    const tiers = [].concat(CFG.SALES_TARGET || []);
+    $("#salesTargetValue").placeholder = tiers.length ? `ค่าปกติ ${tiers.map((t) => Number(t).toLocaleString("th-TH")).join(" → ")}` : "เช่น 250000";
   }
 
   async function saveTarget(e) {
