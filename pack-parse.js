@@ -7,7 +7,8 @@
 
   function lineText(items) {
     // ต่อชิ้นข้อความในบรรทัดเดียวกันตามตำแหน่ง x
-    items.sort((a, b) => a.x - b.x);
+    // สระ/วรรณยุกต์ที่แยกเป็นชิ้นเดี่ยว ให้อยู่ก่อนตัวอักษรที่เริ่มตรงตำแหน่งเดียวกัน
+    items.sort((a, b) => (a.x - (a.mark ? 0.01 : 0)) - (b.x - (b.mark ? 0.01 : 0)));
     let s = "";
     let end = null;
     for (const it of items) {
@@ -40,15 +41,20 @@
 
   // ตัดอักขระแปลกจากฟอนต์ใน PDF ออก
   function clean(s) {
-    return fixThai(s).replace(/[\u0000-\u001f\u007f-\u009f\ue000-\uf8ff\ufffd]/g, "").replace(/\s+/g, " ").trim();
+    return fixThai(s).normalize("NFC").replace(/[\u0000-\u001f\u007f-\u009f\ue000-\uf8ff\ufffd]/g, "").replace(/\s+/g, " ").trim();
   }
+
+  const THAI_END = /[\u0e01-\u0e4e\uf700-\uf71a]$/;
+  const THAI_START = /^[\u0e01-\u0e4e\uf700-\uf71a]/;
+  const MARK_ONLY = /^[\u0e31\u0e34-\u0e3a\u0e47-\u0e4e\uf700-\uf71a]+$/;
 
   function joinLines(lines) {
     // SKU ที่ตัดบรรทัดตรง "-" ต่อกันโดยไม่เว้นวรรค
     let s = "";
     for (const l of lines) {
       if (!l) continue;
-      if (!s || s.endsWith("-") || l.startsWith("-")) s += l;
+      // ตัดบรรทัดกลางคำไทย (ไทยไม่มีเว้นวรรค) หรือที่ "-" → ต่อกันโดยไม่เว้นวรรค
+      if (!s || s.endsWith("-") || l.startsWith("-") || (THAI_END.test(s) && THAI_START.test(l))) s += l;
       else s += " " + l;
     }
     return s;
@@ -144,6 +150,22 @@
       const items = tc.items
         .filter((it) => typeof it.str === "string")
         .map((it) => ({ str: it.str, x: it.transform[4], y: it.transform[5], w: it.width || 0 }));
+      // สระล่าง/วรรณยุกต์บางตัวถูกวางเป็นชิ้นแยก ตำแหน่ง y ต่ำกว่าบรรทัด → ย้ายไปบรรทัดของตัวอักษรที่มันเกาะ
+      for (const m of items) {
+        if (!MARK_ONLY.test(m.str.trim())) continue;
+        m.mark = true;
+        let best = null;
+        for (const b of items) {
+          if (b === m || MARK_ONLY.test(b.str.trim()) || !b.str.trim()) continue;
+          if (m.x < b.x - 0.5 || m.x > b.x + b.w + 0.5) continue;
+          const dy = Math.abs(b.y - m.y);
+          if (dy > 10) continue;
+          // ชิดขอบตัวอักษร (ต่อท้าย/ก่อนหน้า) สำคัญกว่าแค่อยู่ในช่วง x
+          const edge = Math.abs(b.x + b.w - m.x) < 0.6 || Math.abs(b.x - m.x) < 0.6 ? 0 : 1;
+          if (!best || edge < best.edge || (edge === best.edge && dy < best.dy)) best = { edge, dy, y: b.y };
+        }
+        if (best) m.y = best.y;
+      }
 
       const head = {};
       for (const it of items) {
