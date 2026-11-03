@@ -65,6 +65,7 @@ function json_(obj) {
 function doGet(e) {
   try {
     if (e && e.parameter && e.parameter.action === 'pack_list') return json_(packList_());
+    if (e && e.parameter && e.parameter.action === 'sales_list') return json_(salesList_());
     const records = readRows_(getSheet_(), HEADER.length).map(toRecord_);
     const trash = readRows_(getSheet_(TRASH_NAME, TRASH_HEADER), TRASH_HEADER.length).map(r => {
       const rec = toRecord_(r);
@@ -120,6 +121,8 @@ function doPost(e) {
     if (body.action === 'pack_upload') return json_(packUpload_(body));
     if (body.action === 'pack_done') return json_(packDone_(body));
     if (body.action === 'pack_undo') return json_(packUndo_(body));
+    if (body.action === 'sales_upsert') return json_(salesUpsert_(body));
+    if (body.action === 'sales_target') return json_(salesTarget_(body));
 
     return json_({ ok: false, error: 'unknown action' });
   } catch (err) {
@@ -219,5 +222,74 @@ function packUndo_(body) {
   const row = packFind_(sh, body.tracking);
   if (!row) return { ok: true, missing: true };
   sh.getRange(row, 7, 1, 2).clearContent();
+  return { ok: true };
+}
+
+// ================= ยอดขายรายเดือน =================
+// เก็บเฉพาะยอดรวมของแต่ละเดือน (ไม่มีข้อมูลลูกค้า) 1 แถว = 1 เดือน
+
+const SALES_NAME = 'ยอดขายรายเดือน';
+const SALES_HEADER = ['เดือน', 'ยอดขาย (บาท)', 'จำนวนออเดอร์', 'แยกช่องทาง (JSON)', 'เป้า (บาท)', 'อัปเดตเมื่อ', 'อัปเดตโดย'];
+
+function salesSheet_() {
+  const sh = getSheet_(SALES_NAME, SALES_HEADER);
+  sh.getRange('A:A').setNumberFormat('@'); // เก็บ "2026-11" เป็นข้อความ ไม่ให้กลายเป็นวันที่
+  return sh;
+}
+
+function salesFind_(sh, month) {
+  const last = sh.getLastRow();
+  if (last < 2) return 0;
+  const vals = sh.getRange(2, 1, last - 1, 1).getDisplayValues();
+  for (let i = 0; i < vals.length; i++) if (String(vals[i][0]) === String(month)) return i + 2;
+  return 0;
+}
+
+function salesList_() {
+  const sh = salesSheet_();
+  const last = sh.getLastRow();
+  const months = [];
+  if (last >= 2) {
+    sh.getRange(2, 1, last - 1, SALES_HEADER.length).getDisplayValues().forEach(r => {
+      if (!r[0]) return;
+      let channels = {};
+      try { channels = JSON.parse(r[3] || '{}'); } catch (err) {}
+      const num = v => Number(String(v).replace(/,/g, '')) || 0;
+      months.push({ month: r[0], gross: num(r[1]), orders: num(r[2]), channels: channels, target: num(r[4]), updatedAt: r[5], updatedBy: r[6] });
+    });
+  }
+  months.sort((a, b) => a.month < b.month ? -1 : 1);
+  return { ok: true, months: months };
+}
+
+function salesUpsert_(body) {
+  const sh = salesSheet_();
+  let added = 0, updated = 0;
+  (body.months || []).forEach(m => {
+    if (!/^\d{4}-\d{2}$/.test(m.month || '')) return;
+    const values = [m.month, Number(m.gross) || 0, Number(m.orders) || 0, JSON.stringify(m.channels || {})];
+    const row = salesFind_(sh, m.month);
+    if (row) {
+      sh.getRange(row, 1, 1, 4).setValues([values]);
+      sh.getRange(row, 6, 1, 2).setValues([[new Date(), body.by || '']]);
+      updated++;
+    } else {
+      sh.appendRow(values.concat(['', new Date(), body.by || '']));
+      added++;
+    }
+  });
+  return { ok: true, added: added, updated: updated };
+}
+
+function salesTarget_(body) {
+  if (!/^\d{4}-\d{2}$/.test(body.month || '')) return { ok: false, error: 'เดือนไม่ถูกต้อง' };
+  const sh = salesSheet_();
+  let row = salesFind_(sh, body.month);
+  if (!row) {
+    sh.appendRow([body.month, 0, 0, '{}', '', new Date(), body.by || '']);
+    row = sh.getLastRow();
+  }
+  sh.getRange(row, 5).setValue(Number(body.target) || '');
+  sh.getRange(row, 6, 1, 2).setValues([[new Date(), body.by || '']]);
   return { ok: true };
 }

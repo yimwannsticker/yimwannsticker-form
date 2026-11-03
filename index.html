@@ -28,9 +28,10 @@
       <button class="install-btn" id="btnInstall" type="button" hidden>📲 ติดตั้งแอพ</button>
     </div>
     <nav class="tabs" role="tablist">
-      <button class="tab active" data-view="record" role="tab">✏️ บันทึกมิเตอร์</button>
-      <button class="tab" data-view="history" role="tab">📋 ประวัติมิเตอร์</button>
-      <button class="tab" data-view="pack" role="tab">📦 เช็คแพ็ค</button>
+      <button class="tab active" data-view="record" role="tab"><span class="tab-ico" aria-hidden="true">✏️</span> บันทึกมิเตอร์</button>
+      <button class="tab" data-view="history" role="tab"><span class="tab-ico" aria-hidden="true">📋</span> ประวัติมิเตอร์</button>
+      <button class="tab" data-view="pack" role="tab"><span class="tab-ico" aria-hidden="true">📦</span> เช็คแพ็ค</button>
+      <button class="tab" data-view="sales" role="tab"><span class="tab-ico" aria-hidden="true">📈</span> ยอดขาย</button>
     </nav>
   </header>
 
@@ -124,6 +125,37 @@
 
 
   <!-- ===== หน้าเช็คก่อนแพ็ค ===== -->
+  <!-- ===== หน้ายอดขายรายเดือน ===== -->
+  <main id="view-sales" class="view sales-view" hidden>
+    <section class="card sales-now" id="salesNow">
+      <p class="hint">กำลังโหลด…</p>
+    </section>
+    <section class="card">
+      <div class="row-between">
+        <h2>ยอดขายแต่ละเดือน</h2>
+        <button class="btn small ghost" id="salesRefresh" type="button">🔄 รีเฟรช</button>
+      </div>
+      <div id="salesList" class="sales-list"></div>
+    </section>
+    <details class="card sales-admin" id="salesAdmin">
+      <summary><b>⚙️ อัปเดตยอดขาย / ตั้งเป้า</b> <span class="muted">สำหรับแอดมิน</span></summary>
+      <h3 class="sales-sub">อัปโหลดไฟล์สรุปยอดขาย (CSV)</h3>
+      <p class="hint">ใช้ไฟล์เดียวกับที่ใส่ใน Sales Dashboard (เช่น <b>october_2026_full_month.csv</b>) เลือกได้หลายไฟล์พร้อมกัน
+        ระบบเก็บแค่ยอดรวมของแต่ละเดือน ไม่เก็บชื่อหรือข้อมูลลูกค้า อัปไฟล์เดือนเดิมซ้ำได้ ยอดจะถูกแทนที่</p>
+      <label class="btn ghost full file-btn">
+        เลือกไฟล์ CSV
+        <input type="file" id="salesFile" accept=".csv,text/csv" multiple hidden />
+      </label>
+      <div id="salesPreview"></div>
+      <h3 class="sales-sub">ตั้งเป้ายอดขาย</h3>
+      <form class="sales-target" id="salesTargetForm" autocomplete="off">
+        <label><span>เดือน</span><select id="salesTargetMonth"></select></label>
+        <label><span>เป้า (บาท)</span><input id="salesTargetValue" inputmode="numeric" placeholder="เช่น 250000" /></label>
+        <button class="btn primary" type="submit">บันทึกเป้า</button>
+      </form>
+    </details>
+  </main>
+
   <main id="view-pack" class="view pack-view" hidden>
     <div class="pack-side">
     <section class="card">
@@ -257,7 +289,7 @@
       s.src = files[0] + "?t=" + Date.now();
       s.onload = function () { load(files.slice(1)); };
       document.body.appendChild(s);
-    })(["config.js", "app.js", "pack-parse.js", "pack.js"]);
+    })(["config.js", "app.js", "pack-parse.js", "pack.js", "sales-parse.js", "sales.js"]);
   </script>
 </body>
 </html>

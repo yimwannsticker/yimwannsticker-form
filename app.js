@@ -84,6 +84,7 @@
       $("#bottombar").hidden = view !== "record";
       $("#view-history").hidden = view !== "history";
       $("#view-pack").hidden = view !== "pack";
+      if ($("#view-sales")) $("#view-sales").hidden = view !== "sales";
       window.dispatchEvent(new CustomEvent("viewchange", { detail: view }));
       if (view === "history") {
         renderHistory();

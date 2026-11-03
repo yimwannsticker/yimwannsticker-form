@@ -1,0 +1,234 @@
+// หน้า "ยอดขาย": ยอดขายรายเดือน (บาท) + แถบความคืบหน้าเทียบเป้า
+// ข้อมูลอยู่ในแท็บ "ยอดขายรายเดือน" ของชีต แอดมินอัปไฟล์ CSV สรุปยอดขายเพื่ออัปเดต
+(() => {
+  "use strict";
+
+  const CFG = window.APP_CONFIG;
+  const API = (CFG.SHEET_API_URL || "").trim();
+  const $ = (sel, el = document) => el.querySelector(sel);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const baht = (n) => "฿" + Math.round(Number(n) || 0).toLocaleString("th-TH");
+  const TH_MONTH = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  const TH_MONTH_FULL = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+  const monthLabel = (m, full) => {
+    const [y, mo] = m.split("-").map(Number);
+    return `${(full ? TH_MONTH_FULL : TH_MONTH)[mo - 1]} ${full ? y + 543 : String(y + 543).slice(2)}`;
+  };
+  const ymOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+  let months = []; // [{month, gross, orders, channels, target}]
+  let parsed = []; // ผลอ่าน CSV ที่ยังไม่ได้ส่ง
+
+  function toast(msg) {
+    const el = $("#toast");
+    el.textContent = msg;
+    el.classList.remove("has-action");
+    el.classList.add("show");
+    clearTimeout(toast.t);
+    toast.t = setTimeout(() => el.classList.remove("show"), 2800);
+  }
+
+  async function post(body) {
+    if (!API) throw new Error("ยังไม่ได้ตั้งค่า Google Sheet");
+    let res;
+    try {
+      res = await fetch(API, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) });
+    } catch {
+      throw new Error(navigator.onLine ? "ติดต่อ Google Sheet ไม่ได้" : "ไม่มีอินเทอร์เน็ต");
+    }
+    const data = await res.json().catch(() => ({ ok: false, error: "ตอบกลับผิดรูปแบบ" }));
+    if (data.error === "unknown action") throw new Error("ต้องอัปเดตโค้ด Apps Script (Code.gs) ก่อน");
+    if (!data.ok) throw new Error(data.error || "ไม่ทราบสาเหตุ");
+    return data;
+  }
+
+  async function pull(showToast) {
+    if (!API) { $("#salesNow").innerHTML = `<p class="hint">ยังไม่ได้ตั้งค่า Google Sheet</p>`; return; }
+    try {
+      const res = await fetch(`${API}?action=sales_list`);
+      const data = await res.json();
+      if (!data.ok || !Array.isArray(data.months)) throw new Error();
+      months = data.months;
+      render();
+      if (showToast) toast("อัปเดตแล้ว");
+    } catch {
+      $("#salesNow").innerHTML = `<p class="pack-warn">โหลดยอดขายไม่สำเร็จ ถ้าเพิ่งเพิ่มฟีเจอร์นี้ ต้องอัปเดตโค้ด Apps Script ก่อน</p>`;
+      $("#salesList").innerHTML = "";
+    }
+  }
+
+  // ---------------- staff view ----------------
+  function progressBar(gross, target, paceRatio) {
+    const pct = target > 0 ? (gross / target) * 100 : 0;
+    const shown = Math.min(pct, 100);
+    const pace = paceRatio != null ? Math.min(paceRatio * 100, 100) : null;
+    return `
+      <div class="sales-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pct)}">
+        <div class="sales-bar-fill ${pct >= 100 ? "done" : ""}" style="width:${shown}%"></div>
+        ${pace != null && pct < 100 ? `<div class="sales-bar-pace" style="left:${pace}%" title="ควรถึงวันนี้"></div>` : ""}
+      </div>`;
+  }
+
+  function render() {
+    const now = new Date();
+    const thisMonth = ymOf(now);
+    const cur = months.find((m) => m.month === thisMonth);
+    const withSales = months.filter((m) => m.gross > 0);
+    const latest = withSales[withSales.length - 1];
+    const box = $("#salesNow");
+
+    // การ์ดบน: เดือนนี้ (ถ้ามียอดหรือมีเป้า) ไม่งั้นแสดงเดือนล่าสุดที่มียอด
+    const show = cur && (cur.gross > 0 || cur.target > 0) ? cur : latest;
+    if (!show) {
+      box.innerHTML = `<h2>ยอดขาย</h2><p class="hint">ยังไม่มีข้อมูลยอดขาย แอดมินอัปไฟล์สรุปยอดขายได้ที่ “อัปเดตยอดขาย / ตั้งเป้า” ด้านล่าง</p>`;
+    } else {
+      const isCur = show.month === thisMonth;
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const pace = isCur ? now.getDate() / daysInMonth : null;
+      const pct = show.target > 0 ? Math.round((show.gross / show.target) * 100) : null;
+      const left = show.target > 0 ? Math.max(show.target - show.gross, 0) : 0;
+      box.innerHTML = `
+        <div class="sales-now-head">
+          <span class="sales-eyebrow">${isCur ? "เดือนนี้" : "เดือนล่าสุด"} · ${esc(monthLabel(show.month, true))}</span>
+        </div>
+        <div class="sales-big">${baht(show.gross)}</div>
+        ${show.target > 0 ? `
+          ${progressBar(show.gross, show.target, pace)}
+          <div class="sales-meta">
+            <span><b>${pct}%</b> ของเป้า ${baht(show.target)}</span>
+            <span>${left > 0 ? `อีก ${baht(left)}` : "🎉 ถึงเป้าแล้ว"}</span>
+          </div>
+          ${isCur ? `<p class="hint">ขีดสีเขียวบนแถบ = ยอดที่ควรถึงภายในวันนี้ (วันที่ ${now.getDate()} จาก ${daysInMonth} วัน)</p>` : ""}`
+        : `<p class="hint">ยังไม่ได้ตั้งเป้าของเดือนนี้</p>`}
+        ${isCur && !(show.gross > 0) ? `<p class="hint">ยอดเดือนนี้จะขึ้นเมื่อแอดมินอัปไฟล์สรุปยอดขาย</p>` : ""}`;
+    }
+
+    // รายการย้อนหลัง (ใหม่ → เก่า)
+    const list = months.filter((m) => m.gross > 0).slice().reverse();
+    const max = Math.max(1, ...list.map((m) => Math.max(m.gross, m.target || 0)));
+    $("#salesList").innerHTML = list.length
+      ? list.map((m) => {
+          const pct = m.target > 0 ? Math.round((m.gross / m.target) * 100) : null;
+          return `
+          <div class="sales-row">
+            <span class="sales-month">${esc(monthLabel(m.month))}</span>
+            <div class="sales-track">
+              <div class="sales-fill ${pct != null && pct >= 100 ? "done" : ""}" style="width:${(m.gross / max) * 100}%"></div>
+              ${m.target > 0 ? `<div class="sales-target-mark" style="left:${(m.target / max) * 100}%" title="เป้า ${baht(m.target)}"></div>` : ""}
+            </div>
+            <span class="sales-val">${baht(m.gross)}${pct != null ? `<small class="${pct >= 100 ? "ok" : ""}">${pct >= 100 ? "✓ ถึงเป้า" : pct + "% ของเป้า"}</small>` : ""}</span>
+          </div>`;
+        }).join("")
+      : `<p class="hint">ยังไม่มีข้อมูล</p>`;
+
+    renderTargetMonths();
+  }
+
+  // ---------------- admin: upload CSV ----------------
+  async function readFiles(files) {
+    const prev = $("#salesPreview");
+    parsed = [];
+    const errors = [];
+    for (const f of files) {
+      try {
+        const r = window.SalesParse.parseSalesCsv(await f.text());
+        if (r.error) errors.push(`${f.name}: ${r.error}`);
+        else parsed.push(r);
+      } catch (err) {
+        errors.push(`${f.name}: อ่านไม่ได้`);
+      }
+    }
+    // เดือนเดียวกันหลายไฟล์ → ใช้ไฟล์ที่ครอบคลุมช่วงยาวกว่า
+    const byMonth = {};
+    for (const r of parsed) if (!byMonth[r.month] || r.to > byMonth[r.month].to) byMonth[r.month] = r;
+    parsed = Object.values(byMonth).sort((a, b) => (a.month < b.month ? -1 : 1));
+    const existing = Object.fromEntries(months.map((m) => [m.month, m]));
+    prev.innerHTML = `
+      ${errors.length ? `<div class="pack-warn">⚠️ ${errors.map(esc).join("<br />")}</div>` : ""}
+      ${parsed.length ? `
+        <div class="table-wrap"><table class="sum-table sales-table">
+          <thead><tr><th>เดือน</th><th>ยอดขาย</th><th>ออเดอร์</th><th></th></tr></thead>
+          <tbody>${parsed.map((r) => {
+            const old = existing[r.month];
+            const note = r.partial ? `ถึง ${Number(r.to.slice(8))} ${TH_MONTH[Number(r.to.slice(5, 7)) - 1]}` : old && old.gross > 0 ? (Math.round(old.gross) === Math.round(r.gross) ? "เหมือนเดิม" : `แทนที่ ${baht(old.gross)}`) : "ใหม่";
+            return `<tr><td>${esc(monthLabel(r.month))}</td><td>${baht(r.gross)}</td><td>${r.orders.toLocaleString("th-TH")}</td><td class="muted">${esc(note)}</td></tr>`;
+          }).join("")}</tbody>
+        </table></div>
+        <button class="btn primary full" id="salesUpload" type="button">ส่งยอดขาย ${parsed.length} เดือนขึ้นระบบ</button>` : ""}`;
+    const btn = $("#salesUpload");
+    if (btn) btn.addEventListener("click", upload);
+  }
+
+  async function upload() {
+    const btn = $("#salesUpload");
+    btn.disabled = true;
+    btn.textContent = "กำลังส่ง…";
+    try {
+      const by = currentName();
+      const res = await post({ action: "sales_upsert", by, months: parsed.map(({ month, gross, orders, channels }) => ({ month, gross, orders, channels })) });
+      toast(`อัปเดตแล้ว ${res.added + res.updated} เดือน`);
+      parsed = [];
+      $("#salesPreview").innerHTML = `<p class="hint">✅ อัปเดตยอดขายเรียบร้อย</p>`;
+      $("#salesFile").value = "";
+      await pull();
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = "ส่งยอดขายขึ้นระบบ";
+      toast("ส่งไม่สำเร็จ: " + err.message);
+    }
+  }
+
+  function currentName() {
+    for (const k of ["pack_employee_v1", "meter_employee_v1"]) {
+      try { const v = JSON.parse(localStorage.getItem(k)); if (v) return v; } catch {}
+    }
+    return "";
+  }
+
+  // ---------------- admin: target ----------------
+  function renderTargetMonths() {
+    const sel = $("#salesTargetMonth");
+    const keep = sel.value;
+    const now = new Date();
+    const opts = new Set();
+    for (let i = -1; i <= 2; i++) opts.add(ymOf(new Date(now.getFullYear(), now.getMonth() + i, 1)));
+    months.forEach((m) => opts.add(m.month));
+    const list = [...opts].sort().reverse();
+    sel.innerHTML = list.map((m) => `<option value="${m}">${esc(monthLabel(m, true))}</option>`).join("");
+    sel.value = keep && list.includes(keep) ? keep : ymOf(now);
+    fillTarget();
+  }
+
+  function fillTarget() {
+    const m = months.find((x) => x.month === $("#salesTargetMonth").value);
+    $("#salesTargetValue").value = m && m.target ? String(m.target) : "";
+  }
+
+  async function saveTarget(e) {
+    e.preventDefault();
+    const month = $("#salesTargetMonth").value;
+    const target = Number(String($("#salesTargetValue").value).replace(/[,\s฿]/g, ""));
+    if (!(target >= 0)) { toast("ใส่เป้าเป็นตัวเลข"); return; }
+    const btn = e.submitter || $("#salesTargetForm button");
+    btn.disabled = true;
+    try {
+      await post({ action: "sales_target", month, target, by: currentName() });
+      toast(`ตั้งเป้า ${monthLabel(month, true)} = ${baht(target)}`);
+      await pull();
+    } catch (err) {
+      toast("บันทึกไม่สำเร็จ: " + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ---------------- init ----------------
+  $("#salesRefresh").addEventListener("click", () => pull(true));
+  $("#salesFile").addEventListener("change", (e) => { if (e.target.files.length) readFiles([...e.target.files]); });
+  $("#salesTargetMonth").addEventListener("change", fillTarget);
+  $("#salesTargetForm").addEventListener("submit", saveTarget);
+  renderTargetMonths();
+  window.addEventListener("viewchange", (e) => {
+    if (e.detail === "sales") pull();
+  });
+})();
