@@ -49,12 +49,24 @@
       const data = await res.json();
       if (!data.ok || !Array.isArray(data.months)) throw new Error();
       months = data.months;
+      applyDefaultTarget();
       render();
       if (showToast) toast("อัปเดตแล้ว");
     } catch {
       $("#salesNow").innerHTML = `<p class="pack-warn">โหลดยอดขายไม่สำเร็จ ถ้าเพิ่งเพิ่มฟีเจอร์นี้ ต้องอัปเดตโค้ด Apps Script ก่อน</p>`;
       $("#salesList").innerHTML = "";
     }
+  }
+
+  // เป้ากลางจาก config: ใช้กับเดือนที่ยังไม่ได้ตั้งเป้าเอง ตั้งแต่ SALES_TARGET_FROM เป็นต้นไป
+  function applyDefaultTarget() {
+    const def = Number(CFG.SALES_TARGET) || 0;
+    const from = CFG.SALES_TARGET_FROM || "0000-00";
+    if (!def) return;
+    const thisMonth = ymOf(new Date());
+    if (thisMonth >= from && !months.some((m) => m.month === thisMonth)) months.push({ month: thisMonth, gross: 0, orders: 0, channels: {}, target: 0 });
+    for (const m of months) if (!(m.target > 0) && m.month >= from) { m.target = def; m.defaultTarget = true; }
+    months.sort((a, b) => (a.month < b.month ? -1 : 1));
   }
 
   // ---------------- staff view ----------------
@@ -201,7 +213,8 @@
 
   function fillTarget() {
     const m = months.find((x) => x.month === $("#salesTargetMonth").value);
-    $("#salesTargetValue").value = m && m.target ? String(m.target) : "";
+    $("#salesTargetValue").value = m && m.target && !m.defaultTarget ? String(m.target) : "";
+    $("#salesTargetValue").placeholder = CFG.SALES_TARGET ? `ค่าปกติ ${Number(CFG.SALES_TARGET).toLocaleString("th-TH")}` : "เช่น 250000";
   }
 
   async function saveTarget(e) {
