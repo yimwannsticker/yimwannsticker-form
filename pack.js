@@ -189,15 +189,19 @@
     const done = !!o.packedBy;
     const allTicked = o.items.length > 0 && ticked.size === o.items.length;
     const totalSheets = o.items.reduce((a, b) => a + (Number(b.qty) || 0), 0);
+    const isNote = (it) => it.code === "!";
+    const partial = o.items.some(isNote);
+    const realCount = o.items.filter((it) => !isNote(it)).length;
     box.innerHTML = `
       <div class="card pack-card ${done ? "warn" : ""}">
         ${done ? `<div class="pack-banner warn">⚠️ กล่องนี้แพ็คไปแล้ว โดย <b>${esc(o.packedBy)}</b> · ${esc(timeTH(o.packedAt))}</div>` : ""}
+        ${partial && !done ? `<div class="pack-banner warn">⚠️ <b>ใบปะแสดงสินค้าไม่ครบ</b> ด้านล่างคือรายการที่อ่านได้เท่านั้น เปิดคำสั่งซื้อ <b>${esc(o.orderId)}</b> ในระบบ แล้วหยิบที่เหลือให้ครบ</div>` : ""}
         <div class="row-between">
           <div>
             <div class="pack-track">${esc(o.tracking)}</div>
             <div class="muted pack-order">Order ${esc(o.orderId)}</div>
           </div>
-          <div class="pack-total">${o.items.length} รายการ<br /><b>${totalSheets}</b> แผ่น</div>
+          <div class="pack-total">${realCount}${partial ? "+" : ""} รายการ<br /><b>${totalSheets}${partial ? "+" : ""}</b> แผ่น</div>
         </div>
         <div class="pack-hint-row">
           <p class="hint">${done ? "ไม่ต้องแพ็คซ้ำ ถ้าบันทึกผิดกด “ยกเลิกการแพ็ค”" : "หยิบของทีละรายการ แล้วแตะเพื่อติ๊ก"}</p>
@@ -206,10 +210,10 @@
         <ul class="pack-items">
           ${o.items.map((it, i) => `
             <li>
-              <button type="button" class="pack-item ${ticked.has(i) || done ? "on" : ""}" data-i="${i}" ${done ? "disabled" : ""}>
+              <button type="button" class="pack-item ${isNote(it) ? "note" : ""} ${ticked.has(i) || done ? "on" : ""}" data-i="${i}" ${done ? "disabled" : ""}>
                 <span class="pack-code">${esc(it.code || "?")}</span>
                 <span class="pack-sku"><b>${esc(it.sellerSku || it.sku || "-")}</b><span class="muted">${esc(it.name)}</span></span>
-                <span class="pack-qty">×${esc(it.qty)}<small>แผ่น</small></span>
+                ${isNote(it) ? `<span class="pack-qty">?<small>ดูในระบบ</small></span>` : `<span class="pack-qty">×${esc(it.qty)}<small>แผ่น</small></span>`}
                 <span class="pack-check" aria-hidden="true"></span>
               </button>
             </li>`).join("")}
@@ -227,7 +231,8 @@
     );
     const btnAll = $("#packTickAll");
     if (btnAll) btnAll.addEventListener("click", () => {
-      ticked = allTicked ? new Set() : new Set(o.items.map((_, i) => i));
+      // ติ๊กทุกข้อไม่รวมแถวเตือน "ใบปะไม่ครบ" ต้องกดยืนยันเองหลังเช็คในระบบ
+      ticked = allTicked ? new Set() : new Set(o.items.map((it, i) => (it.code === "!" ? -1 : i)).filter((i) => i >= 0));
       renderResult();
     });
     const btnDone = $("#packDone");
@@ -304,7 +309,7 @@
           <ul>${pending
             .slice()
             .sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt))
-            .map((o) => `<li><button type="button" data-t="${esc(o.tracking)}">${esc(o.tracking)}</button><span class="muted">${o.items.map((it) => esc(it.code || "?") + "×" + esc(it.qty)).join(", ")}</span></li>`)
+            .map((o) => `<li><button type="button" data-t="${esc(o.tracking)}">${esc(o.tracking)}</button><span class="muted">${o.items.map((it) => (it.code === "!" ? "⚠️ ไม่ครบ" : esc(it.code || "?") + "×" + esc(it.qty))).join(", ")}</span></li>`)
             .join("")}</ul>
         </details>` : `<p class="hint">ไม่มีกล่องค้างแพ็ค 🎉</p>`}
       ${doneToday.length ? `
@@ -313,7 +318,7 @@
           <ul>${doneToday
             .slice()
             .sort((a, b) => b.packedAt.localeCompare(a.packedAt))
-            .map((o) => `<li><button type="button" data-t="${esc(o.tracking)}">${esc(o.tracking)}</button><span>${esc(o.packedBy)} · ${esc(timeTH(o.packedAt))}</span><span class="muted">${o.items.map((it) => esc(it.code || "?") + "×" + esc(it.qty)).join(", ")}</span></li>`)
+            .map((o) => `<li><button type="button" data-t="${esc(o.tracking)}">${esc(o.tracking)}</button><span>${esc(o.packedBy)} · ${esc(timeTH(o.packedAt))}</span><span class="muted">${o.items.map((it) => (it.code === "!" ? "⚠️ ไม่ครบ" : esc(it.code || "?") + "×" + esc(it.qty))).join(", ")}</span></li>`)
             .join("")}</ul>
         </details>` : ""}`;
     box.querySelectorAll("[data-t]").forEach((b) => b.addEventListener("click", () => lookup(b.dataset.t)));
@@ -348,8 +353,8 @@
         <tbody>${list.map((o) => `
           <tr class="${known.has(o.tracking) ? "zero" : ""}">
             <td>${esc(o.tracking)}</td>
-            <td>${o.items.map((it) => `${esc(it.sellerSku || it.sku)} ×${esc(it.qty)}`).join("<br />")}</td>
-            <td>${o.qty}</td>
+            <td>${o.items.map((it) => (it.code === "!" ? `<b class="pack-note-text">⚠️ ใบปะไม่ครบ ดูที่เหลือในระบบ</b>` : `${esc(it.sellerSku || it.sku)} ×${esc(it.qty)}`)).join("<br />")}</td>
+            <td>${o.qty}${o.incomplete ? "+" : ""}</td>
           </tr>`).join("")}</tbody>
       </table></div>
       <button class="btn primary full" id="packUpload" type="button" ${fresh.length ? "" : "disabled"}>

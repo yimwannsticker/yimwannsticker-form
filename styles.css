@@ -433,3 +433,8 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 .brand-text { min-width: 0; display: grid; gap: 4px; }
 .tab { line-height: 1.3; }
 .tab { white-space: nowrap; font-size: clamp(0.78rem, 3.6vw, 1rem); padding-left: 4px; padding-right: 4px; }
+.pack-item.note { border-style: dashed; border-color: var(--accent); background: var(--accent-soft); }
+.pack-item.note .pack-code { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.pack-item.note .pack-sku .muted { white-space: normal; }
+.pack-item.note.on { border-style: solid; border-color: var(--ok); }
+.pack-note-text { color: var(--text); }

@@ -48,6 +48,9 @@
   const THAI_START = /^[\u0e01-\u0e4e\uf700-\uf71a]/;
   const MARK_ONLY = /^[\u0e31\u0e34-\u0e3a\u0e47-\u0e4e\uf700-\uf71a]+$/;
 
+  const TRUNC_RE = /มากกว่านี้|มีสินค้าอีก|รายการอื่น|ดูรายละเอียด(เพิ่มเติม)?ใน|ดูในระบบ|ดูเพิ่มเติม|more items?|and \d+ more/i;
+  const NOTE_CODE = "!";
+
   function joinLines(lines) {
     // SKU ที่ตัดบรรทัดตรง "-" ต่อกันโดยไม่เว้นวรรค
     let s = "";
@@ -131,7 +134,9 @@
         qty: Number(q.str.trim()),
       };
     });
-    return { rows, qtyTotal, hasTable: !!header || rows.length > 0 };
+    // Shopee: ถ้าสินค้าเยอะเกินใบ จะมีข้อความบอกว่ายังมีรายการอื่น และไม่มีช่องจำนวนรวม
+    const truncated = items.some((it) => TRUNC_RE.test(clean(it.str)));
+    return { rows, qtyTotal, truncated, hasTable: !!header || rows.length > 0 };
   }
 
   function designCode(sku) {
@@ -197,9 +202,10 @@
       if (isContinuation) {
         prev.items.push(...table.rows);
         if (table.qtyTotal !== null) prev.qtyTotal = table.qtyTotal;
+        if (table.truncated) prev.truncated = true;
         prev.pages.push(p);
       } else if (tracking) {
-        orders.push({ tracking, orderId, items: table.rows, qtyTotal: table.qtyTotal, pages: [p] });
+        orders.push({ tracking, orderId, items: table.rows, qtyTotal: table.qtyTotal, truncated: table.truncated, pages: [p] });
       } else {
         warnings.push(`หน้า ${p}: หาเลขพัสดุไม่เจอ`);
       }
@@ -212,11 +218,17 @@
       if (!o.items.length) warnings.push(`${o.tracking}: อ่านรายการสินค้าไม่ได้`);
       else if (o.qtyTotal !== null && o.qtyTotal !== sum)
         warnings.push(`${o.tracking}: จำนวนรวมไม่ตรง (อ่านได้ ${sum} แต่ใบปะบอก ${o.qtyTotal})`);
+      // ใบปะแสดงสินค้าไม่ครบ (มีข้อความบอก หรือไม่มีช่องจำนวนรวม) → เพิ่มแถวเตือนให้คนแพ็คต้องติ๊กยืนยัน
+      o.incomplete = !!o.truncated || (o.items.length > 0 && o.qtyTotal === null);
+      if (o.incomplete) {
+        o.items.push({ code: NOTE_CODE, sku: "ใบปะแสดงสินค้าไม่ครบ", sellerSku: "", name: "เปิดคำสั่งซื้อนี้ในระบบ แล้วหยิบรายการที่เหลือให้ครบ", qty: 0 });
+        warnings.push(`${o.tracking}: ใบปะแสดงสินค้าไม่ครบ อ่านได้ ${o.items.length - 1} รายการ ${sum} แผ่น คนแพ็คต้องเช็ครายการที่เหลือในระบบ`);
+      }
     }
     return { orders, warnings };
   }
 
-  const api = { parsePdf, designCode };
+  const api = { parsePdf, designCode, NOTE_CODE };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.PackParse = api;
 })(typeof window !== "undefined" ? window : globalThis);
