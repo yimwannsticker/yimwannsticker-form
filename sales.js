@@ -285,6 +285,8 @@
     prev.innerHTML = `<p class="hint">กำลังอ่านไฟล์…</p>`;
     const merged = {};
     const notes = [];
+    const late = []; // ไฟล์ที่ไม่ได้เริ่มวันที่ 1 ของเดือน
+    const thisMonth = ymOf(new Date());
     for (const f of files) {
       try {
         let rows;
@@ -297,6 +299,9 @@
         }
         const r = window.DailyParse.parseRows(rows);
         if (r.error) { notes.push(`⚠️ ${f.name}: ${r.error}`); continue; }
+        for (const [month, day] of Object.entries(r.firstDay || {})) {
+          if (day > 1 && (month === thisMonth || r.months[month])) late.push({ platform: r.platform, file: f.name, month, day });
+        }
         for (const [month, chans] of Object.entries(r.months)) {
           merged[month] = merged[month] || {};
           for (const [name, v] of Object.entries(chans)) merged[month][name] = v;
@@ -306,7 +311,7 @@
         notes.push(`⚠️ ${f.name}: อ่านไม่ได้ (${err.message || err})`);
       }
     }
-    daily = { months: merged, notes };
+    daily = { months: merged, notes, late };
     renderDaily();
   }
 
@@ -314,10 +319,15 @@
     const prev = $("#dailyPreview");
     const mons = { ...((daily && daily.months) || {}) };
     const keys = Object.keys(mons).sort();
-    $("#dailySend").disabled = !keys.length;
+    const late = (daily && daily.late) || [];
+    $("#dailySend").disabled = !keys.length || late.length > 0;
     if (!keys.length) { prev.innerHTML = daily ? daily.notes.map((n) => `<p class="hint">${esc(n)}</p>`).join("") : ""; return; }
     prev.innerHTML = `
       ${daily ? `<p class="hint">${daily.notes.map(esc).join(" · ")}</p>` : ""}
+      ${late.length ? `<div class="pack-warn daily-late">⚠️ <b>ไฟล์ไม่ได้เริ่มวันที่ 1 ของเดือน</b>
+        <ul>${late.map((l) => `<li>${esc(l.platform)}: ออเดอร์แรกในไฟล์คือวันที่ ${l.day} ${esc(monthLabel(l.month, true))}</li>`).join("")}</ul>
+        ยอดที่อัปจะแทนที่ยอดทั้งเดือนของช่องทางนั้น ถ้าส่งไฟล์นี้ ยอดวันที่ 1–${late[0].day - 1} จะหายไป ควร export ใหม่ตั้งแต่วันที่ 1
+        <label class="daily-late-ok"><input type="checkbox" id="dailyLateOk" /> ไม่มีออเดอร์ก่อนหน้านี้จริง ส่งได้</label></div>` : ""}
       ${keys.map((k) => {
         const chans = mons[k];
         const old = (months.find((m) => m.month === k) || {}).dailyChannels || {};
@@ -330,6 +340,8 @@
         </table></div>`;
       }).join("")}`;
     $("#dailySend").onclick = () => sendDaily(mons);
+    const ok = $("#dailyLateOk");
+    if (ok) ok.onchange = () => { $("#dailySend").disabled = !ok.checked; };
   }
 
   async function sendDaily(mons) {

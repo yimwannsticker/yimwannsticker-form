@@ -20,6 +20,10 @@
     return "A5";
   }
 
+  function seen(firstDay, month, day) {
+    if (!firstDay[month] || day < firstDay[month]) firstDay[month] = day;
+  }
+
   function add(months, month, channel, g) {
     const m = (months[month] = months[month] || {});
     const c = (m[channel] = m[channel] || { g: 0, o: 0 });
@@ -52,9 +56,12 @@
       orders.get(id).push(r);
     }
     const months = {};
+    const firstDay = {};
     const skipped = { cancelled: 0, unpaid: 0 };
     for (const [, lines] of orders) {
       const f = lines[0];
+      const ds = txt(f[C.date]);
+      if (/^\d{4}-\d{2}-\d{2}/.test(ds)) seen(firstDay, ds.slice(0, 7), Number(ds.slice(8, 10)));
       const status = txt(f[C.status]);
       if (txt(f[C.cancel]) || status === "ยกเลิกแล้ว") { skipped.cancelled++; continue; }
       if (status === "ยังไม่ชำระ") { skipped.unpaid++; continue; }
@@ -67,7 +74,7 @@
       const sku = lines.map((l) => txt(l[C.sku])).filter(Boolean).join("; ");
       add(months, month, "Shopee " + classifyA5A3(sku), g);
     }
-    return { platform: "Shopee", orders: orders.size, months, skipped };
+    return { platform: "Shopee", orders: orders.size, months, firstDay, skipped };
   }
 
   // TikTok: ยอดต่อออเดอร์ = รวม (SKU Subtotal Before Discount − SKU Seller Discount)
@@ -92,9 +99,12 @@
       orders.get(id).push(r);
     }
     const months = {};
+    const firstDay = {};
     const skipped = { cancelled: 0, unpaid: 0 };
     for (const [, lines] of orders) {
       const f = lines[0];
+      const dd = txt(f[C.created]).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if (dd) seen(firstDay, `${dd[3]}-${dd[2]}`, Number(dd[1]));
       if (txt(f[C.cancel]) || txt(f[C.status]) === "ยกเลิกแล้ว") { skipped.cancelled++; continue; }
       const d = txt(f[C.created]).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
       if (!d) continue;
@@ -102,7 +112,7 @@
       const g = lines.reduce((a, l) => a + num(l[C.before]) - (C.seller >= 0 ? num(l[C.seller]) : 0), 0);
       add(months, month, "TikTok Shop", g);
     }
-    return { platform: "TikTok", orders: orders.size, months, skipped };
+    return { platform: "TikTok", orders: orders.size, months, firstDay, skipped };
   }
 
   // CSV แบบรองรับเครื่องหมายคำพูดและขึ้นบรรทัดในช่อง (TikTok มีข้อความผู้ซื้อหลายบรรทัด)

@@ -498,3 +498,5 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 .sales-cmp.warn { border-color: var(--accent); background: var(--accent-soft); }
 .sales-cmp.ok { border-color: var(--ok); }
 .sales-now.stale .sales-src::after { content: " · กำลังอัปเดต…"; }
+.daily-late ul { margin: 6px 0; }
+.daily-late-ok { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-weight: 500; }
