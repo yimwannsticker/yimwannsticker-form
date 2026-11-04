@@ -79,10 +79,11 @@
     const count = {};
     for (const it of items) {
       const t = it.str.trim();
-      if (TRACKING_RE.test(t) && (t.match(/\d/g) || []).length >= 8) count[t] = (count[t] || 0) + 1;
+      // J&T: JTTH + 12 หลัก, SPX: TH + 12 หลัก + ตัวอักษร, Flash: TH + ตัวเลข/ตัวอักษรปน (เช่น TH54019B0ARK0P)
+      if (TRACKING_RE.test(t) && t.length <= 22 && (t.match(/\d/g) || []).length >= 5) count[t] = (count[t] || 0) + 1;
     }
     let best = "";
-    for (const t in count) if (!best || count[t] > count[best]) best = t;
+    for (const t in count) if (!best || count[t] > count[best] || (count[t] === count[best] && t.length > best.length)) best = t;
     return best;
   }
 
