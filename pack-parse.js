@@ -104,7 +104,11 @@
     const header = items.find((it) => isH(it, "name"));
     const top = header ? header.y - 2 : pageTop;
     const totalItem = items.find((it) => isH(it, "total"));
-    const bottom = totalItem ? totalItem.y + 2 : -1;
+    // ท้ายหน้ามีบรรทัด "Order ID: …" (TikTok) ทุกหน้า ถ้าหน้านี้ไม่มี Qty Total (ออเดอร์ล้นไปหน้าถัดไป) ให้ใช้บรรทัดนั้นเป็นขอบล่างของตาราง
+    const footer = items
+      .filter((it) => /^(Order ID|Package ID)\s*:/i.test(it.str.trim()) && it.y < top)
+      .sort((a, b) => b.y - a.y)[0];
+    const bottom = Math.max(totalItem ? totalItem.y + 2 : -1, footer ? footer.y + 2 : -1);
     let qtyTotal = null;
     if (totalItem) {
       const t = items.find((it) => Math.abs(it.y - totalItem.y) < 2 && it.x > totalItem.x && /^\d+$/.test(it.str.trim()));

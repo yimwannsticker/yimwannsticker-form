@@ -107,6 +107,12 @@
     return true;
   }
 
+  // ชื่อ SKU ที่จะแสดง (ข้อมูลที่อัปไว้ก่อนแก้ตัวอ่าน อาจมี "Order ID: …" ติดมาในช่อง Seller SKU)
+  function skuOf(it) {
+    const seller = /^(Order ID|Package ID)\s*:/i.test(it.sellerSku || "") ? "" : it.sellerSku;
+    return seller || it.sku;
+  }
+
   // ---------------- scan ----------------
   // กล้องเปิดค้างไว้ระหว่างแพ็ค: สแกนแล้วแค่ "พัก" การอ่าน ไม่ปิดกล้อง → กล่องถัดไปสแกนต่อได้ทันที
   let scanPaused = false;
@@ -257,7 +263,7 @@
             <li>
               <button type="button" class="pack-item ${isNote(it) ? "note" : ""} ${ticked.has(i) || done ? "on" : ""}" data-i="${i}" ${done ? "disabled" : ""}>
                 <span class="pack-code">${esc(it.code || "?")}</span>
-                <span class="pack-sku"><b>${esc(it.sellerSku || it.sku || "-")}</b><span class="muted">${esc(it.name)}</span></span>
+                <span class="pack-sku"><b>${esc(skuOf(it) || "-")}</b><span class="muted">${esc(it.name)}</span></span>
                 ${isNote(it) ? `<span class="pack-qty">?<small>ดูในระบบ</small></span>` : `<span class="pack-qty">×${esc(it.qty)}<small>แผ่น</small></span>`}
                 <span class="pack-check" aria-hidden="true"></span>
               </button>
@@ -423,7 +429,7 @@
         <tbody>${list.map((o) => `
           <tr class="${known.has(o.tracking) ? "zero" : ""}">
             <td>${esc(o.tracking)}</td>
-            <td>${o.items.map((it) => (it.code === "!" ? `<b class="pack-note-text">⚠️ ใบปะไม่ครบ ดูที่เหลือในระบบ</b>` : `${esc(it.sellerSku || it.sku)} ×${esc(it.qty)}`)).join("<br />")}</td>
+            <td>${o.items.map((it) => (it.code === "!" ? `<b class="pack-note-text">⚠️ ใบปะไม่ครบ ดูที่เหลือในระบบ</b>` : `${esc(skuOf(it))} ×${esc(it.qty)}`)).join("<br />")}</td>
             <td>${o.qty}${o.incomplete ? "+" : ""}</td>
           </tr>`).join("")}</tbody>
       </table></div>
