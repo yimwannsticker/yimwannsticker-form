@@ -142,13 +142,10 @@
       <h3 class="sales-sub">อัปยอดวันนี้ (ก่อนกลับบ้าน)</h3>
       <p class="hint">Export คำสั่งซื้อของเดือนนี้ (วันที่ 1 ถึงวันนี้) แล้วเลือกไฟล์ทั้งสองพร้อมกัน
         <b>Shopee:</b> Order.all…xlsx · <b>TikTok:</b> ทั้งหมด คำสั่งซื้อ…csv
-        ระบบรวมยอด Gross ไม่นับออเดอร์ที่ยกเลิก/ยังไม่ชำระ และแทนที่ยอดเดิมของช่องทางนั้น</p>
+        ระบบรวมยอด Gross ไม่นับออเดอร์ที่ยกเลิก/ยังไม่ชำระ และแทนที่ยอดเดิมของช่องทางนั้น (ยอด Line จะมากับ Dashboard ตอนสิ้นเดือน)</p>
       <label class="btn ghost full file-btn">
         เลือกไฟล์ออเดอร์ (.xlsx / .csv)
         <input type="file" id="dailyFile" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden />
-      </label>
-      <label class="sales-line"><span>ยอด Line สะสมเดือนนี้ (บาท) <span class="muted">ไม่ต้องใส่ถ้าไม่มีหรือไม่เปลี่ยน</span></span>
-        <input id="dailyLine" inputmode="decimal" placeholder="เช่น 3500" />
       </label>
       <div id="dailyPreview"></div>
       <button class="btn primary full" id="dailySend" type="button" disabled>ส่งยอดวันนี้</button>

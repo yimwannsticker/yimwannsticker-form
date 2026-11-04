@@ -211,19 +211,23 @@
     box.innerHTML = items.map((m) => {
       if (!(m.final > 0)) return `<div class="sales-cmp warn"><b>${esc(monthLabel(m.month, true))}</b> ถึงกำหนดเทียบแล้ว แต่ยังไม่มีไฟล์ของ Dashboard ใน Drive (ยอดรายวัน ${baht(m.daily)})</div>`;
       const names = [...new Set([...Object.keys(m.channels || {}), ...Object.keys(m.dailyChannels || {})])];
-      const diff = m.daily - m.final;
-      const pct = m.final ? (diff / m.final) * 100 : 0;
+      // เทียบเฉพาะช่องทางที่อัปรายวัน (Line เพิ่มทีหลังใน Dashboard ตอนสิ้นเดือน)
+      const cmpNames = names.filter((n) => m.dailyChannels[n]);
+      const finalCmp = cmpNames.reduce((a, n) => a + (Number(m.channels[n]) || 0), 0);
+      const diff = m.daily - finalCmp;
+      const pct = finalCmp ? (diff / finalCmp) * 100 : 0;
       const ok = Math.abs(diff) < 1;
       return `<div class="sales-cmp ${ok ? "ok" : "warn"}">
         <div class="row-between"><b>${esc(monthLabel(m.month, true))}</b><span>${ok ? "✓ ตรงกัน" : `ต่าง ${diff > 0 ? "+" : ""}${baht(diff).replace("฿-", "-฿")} (${pct > 0 ? "+" : ""}${pct.toFixed(1)}%)`}</span></div>
         <div class="table-wrap"><table class="sum-table">
           <thead><tr><th>ช่องทาง</th><th>รายวัน</th><th>Dashboard</th><th>ต่าง</th></tr></thead>
           <tbody>${names.map((n) => {
-            const d = (m.dailyChannels[n] || {}).g || 0;
             const f = Number(m.channels[n]) || 0;
+            if (!m.dailyChannels[n]) return `<tr class="muted"><td>${esc(n)}</td><td>ไม่ได้อัปรายวัน</td><td>${baht(f)}</td><td>ไม่นับ</td></tr>`;
+            const d = m.dailyChannels[n].g || 0;
             return `<tr><td>${esc(n)}</td><td>${baht(d)}</td><td>${baht(f)}</td><td>${Math.abs(d - f) < 1 ? "–" : (d - f > 0 ? "+" : "") + Math.round(d - f).toLocaleString("th-TH")}</td></tr>`;
           }).join("")}
-          <tr><td><b>รวม</b></td><td><b>${baht(m.daily)}</b></td><td><b>${baht(m.final)}</b></td><td><b>${ok ? "–" : (diff > 0 ? "+" : "") + Math.round(diff).toLocaleString("th-TH")}</b></td></tr></tbody>
+          <tr><td><b>รวมที่เทียบ</b></td><td><b>${baht(m.daily)}</b></td><td><b>${baht(finalCmp)}</b></td><td><b>${ok ? "–" : (diff > 0 ? "+" : "") + Math.round(diff).toLocaleString("th-TH")}</b></td></tr></tbody>
         </table></div>
         <p class="hint">ตอนนี้แอปแสดงยอดของ Dashboard สำหรับเดือนนี้</p>
       </div>`;
@@ -275,17 +279,9 @@
     renderDaily();
   }
 
-  function lineValue() {
-    const v = String($("#dailyLine").value).replace(/[,\s฿]/g, "");
-    return v === "" ? null : Number(v);
-  }
-
   function renderDaily() {
     const prev = $("#dailyPreview");
-    const line = lineValue();
-    const thisMonth = ymOf(new Date());
     const mons = { ...((daily && daily.months) || {}) };
-    if (line != null && line >= 0) mons[thisMonth] = { ...(mons[thisMonth] || {}), Line: { g: line, o: 0 } };
     const keys = Object.keys(mons).sort();
     $("#dailySend").disabled = !keys.length;
     if (!keys.length) { prev.innerHTML = daily ? daily.notes.map((n) => `<p class="hint">${esc(n)}</p>`).join("") : ""; return; }
@@ -314,7 +310,6 @@
       toast("✅ อัปยอดวันนี้แล้ว");
       daily = null;
       $("#dailyFile").value = "";
-      $("#dailyLine").value = "";
       $("#dailyPreview").innerHTML = `<p class="hint">✅ อัปยอดเรียบร้อย</p>`;
       await pull();
     } catch (err) {
@@ -327,7 +322,7 @@
 
   // ---------------- init ----------------
   $("#dailyFile").addEventListener("change", (e) => { if (e.target.files.length) readDailyFiles([...e.target.files]); });
-  $("#dailyLine").addEventListener("input", renderDaily);
+
   $("#salesRefresh").addEventListener("click", () => pull(true));
   $("#salesSyncNow").addEventListener("click", async (e) => {
     e.target.disabled = true;
