@@ -352,3 +352,9 @@ function salesParseCsv_(text) {
   if (gross === null) gross = Object.keys(channels).reduce((a, k) => a + channels[k], 0);
   return { month: month, gross: Math.round(gross * 100) / 100, orders: orders, channels: channels };
 }
+
+// กด Run ฟังก์ชันนี้หนึ่งครั้งในหน้า Apps Script เพื่ออนุญาตให้สคริปต์อ่านโฟลเดอร์ยอดขายใน Drive
+// ผลที่ถูกต้อง: Execution log ขึ้นชื่อโฟลเดอร์ "data"
+function authorizeDrive() {
+  Logger.log(DriveApp.getFolderById(SALES_FOLDER_ID).getName());
+}
