@@ -138,10 +138,25 @@
       <div id="salesList" class="sales-list"></div>
     </section>
     <details class="card sales-admin" id="salesAdmin">
-      <summary><b>⚙️ ที่มาของยอด / ตั้งเป้า</b> <span class="muted">สำหรับแอดมิน</span></summary>
-      <h3 class="sales-sub">ที่มาของยอดขาย</h3>
-      <p class="hint">ระบบดึงยอดจากไฟล์สรุปยอดขายรายเดือน (<b>…_full_month.csv</b>) ในโฟลเดอร์ <b>sales-dashboard › data</b> ของ Google Drive ร้านให้อัตโนมัติ
-        ทุกครั้งที่มีคนเปิดแท็บนี้ (เช็คไฟล์ใหม่ทุก 10 นาที) ไม่ต้องอัปโหลดเอง</p>
+      <summary><b>⚙️ อัปยอดขาย / ตั้งเป้า</b> <span class="muted">สำหรับแอดมิน</span></summary>
+      <h3 class="sales-sub">อัปยอดวันนี้ (ก่อนกลับบ้าน)</h3>
+      <p class="hint">Export คำสั่งซื้อของเดือนนี้ (วันที่ 1 ถึงวันนี้) แล้วเลือกไฟล์ทั้งสองพร้อมกัน
+        <b>Shopee:</b> Order.all…xlsx · <b>TikTok:</b> ทั้งหมด คำสั่งซื้อ…csv
+        ระบบรวมยอด Gross ไม่นับออเดอร์ที่ยกเลิก/ยังไม่ชำระ และแทนที่ยอดเดิมของช่องทางนั้น</p>
+      <label class="btn ghost full file-btn">
+        เลือกไฟล์ออเดอร์ (.xlsx / .csv)
+        <input type="file" id="dailyFile" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden />
+      </label>
+      <label class="sales-line"><span>ยอด Line สะสมเดือนนี้ (บาท) <span class="muted">ไม่ต้องใส่ถ้าไม่มีหรือไม่เปลี่ยน</span></span>
+        <input id="dailyLine" inputmode="decimal" placeholder="เช่น 3500" />
+      </label>
+      <div id="dailyPreview"></div>
+      <button class="btn primary full" id="dailySend" type="button" disabled>ส่งยอดวันนี้</button>
+
+      <h3 class="sales-sub">เทียบกับ Dashboard</h3>
+      <p class="hint">หลังวันที่ 15 ของเดือนถัดไป เมื่อไฟล์สรุปของ Dashboard (<b>…_full_month.csv</b>) อยู่ในโฟลเดอร์ <b>sales-dashboard › data</b> ของ Google Drive
+        ระบบจะดึงมาเทียบกับยอดรายวันให้เอง แล้วใช้ยอดของ Dashboard เป็นยอดจริงของเดือนนั้น</p>
+      <div id="salesCompare"></div>
       <div class="sales-sync">
         <span id="salesSyncInfo" class="muted"></span>
         <button class="btn small ghost" id="salesSyncNow" type="button">⟳ ดึงจาก Drive ตอนนี้</button>
@@ -288,7 +303,7 @@
       s.src = files[0] + "?t=" + Date.now();
       s.onload = function () { load(files.slice(1)); };
       document.body.appendChild(s);
-    })(["config.js", "app.js", "pack-parse.js", "pack.js", "sales.js"]);
+    })(["config.js", "app.js", "pack-parse.js", "pack.js", "daily-parse.js", "sales.js"]);
   </script>
 </body>
 </html>

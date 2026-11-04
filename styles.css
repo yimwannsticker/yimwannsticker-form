@@ -489,3 +489,11 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 .sales-cheer { background: var(--accent-soft); color: var(--text); border: 1px solid var(--accent); border-radius: 12px; padding: 8px 12px; font-weight: 600; }
 .sales-bar:has(.sales-bar-tier) { margin-bottom: 14px; }
 .sales-sync { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.sales-src { margin: -4px 0 0; font-size: 0.8rem; color: var(--muted); }
+.sales-month small { display: block; font-size: 0.65rem; color: var(--muted); line-height: 1; }
+.sales-line { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; margin: 8px 0; }
+.sales-line input { height: 46px; border: 1px solid var(--border); border-radius: 12px; padding: 0 12px; background: var(--surface-2); }
+#dailySend { margin-top: 10px; }
+.sales-cmp { border-radius: 14px; padding: 12px; margin: 10px 0; border: 1px solid var(--border); background: var(--surface-2); display: grid; gap: 8px; }
+.sales-cmp.warn { border-color: var(--accent); background: var(--accent-soft); }
+.sales-cmp.ok { border-color: var(--ok); }

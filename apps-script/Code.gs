@@ -123,6 +123,7 @@ function doPost(e) {
     if (body.action === 'pack_undo') return json_(packUndo_(body));
     if (body.action === 'sales_upsert') return json_(salesUpsert_(body));
     if (body.action === 'sales_target') return json_(salesTarget_(body));
+    if (body.action === 'sales_daily') return json_(salesDaily_(body));
 
     return json_({ ok: false, error: 'unknown action' });
   } catch (err) {
@@ -229,10 +230,16 @@ function packUndo_(body) {
 // เก็บเฉพาะยอดรวมของแต่ละเดือน (ไม่มีข้อมูลลูกค้า) 1 แถว = 1 เดือน
 
 const SALES_NAME = 'ยอดขายรายเดือน';
-const SALES_HEADER = ['เดือน', 'ยอดขาย (บาท)', 'จำนวนออเดอร์', 'แยกช่องทาง (JSON)', 'เป้า (บาท)', 'อัปเดตเมื่อ', 'อัปเดตโดย'];
+// คอลัมน์ B–D = ยอดจาก Dashboard (ไฟล์ full_month ใน Drive, สรุปหลังวันที่ 15 เดือนถัดไป)
+// คอลัมน์ H–K = ยอดรายวันที่แอดมินอัปเอง (Gross จากไฟล์ออเดอร์ Shopee/TikTok + ยอด Line ที่กรอก)
+const SALES_HEADER = ['เดือน', 'ยอดขาย Dashboard (บาท)', 'ออเดอร์ Dashboard', 'Dashboard แยกช่องทาง (JSON)', 'เป้า (บาท)', 'อัปเดตเมื่อ', 'อัปเดตโดย',
+  'ยอดรายวัน (บาท)', 'ออเดอร์รายวัน', 'รายวันแยกช่องทาง (JSON)', 'อัปรายวันเมื่อ'];
 
 function salesSheet_() {
   const sh = getSheet_(SALES_NAME, SALES_HEADER);
+  if (sh.getLastColumn() < SALES_HEADER.length) {
+    sh.getRange(1, 1, 1, SALES_HEADER.length).setValues([SALES_HEADER]).setFontWeight('bold');
+  }
   sh.getRange('A:A').setNumberFormat('@'); // เก็บ "2026-11" เป็นข้อความ ไม่ให้กลายเป็นวันที่
   return sh;
 }
@@ -257,7 +264,10 @@ function salesList_(force) {
       let channels = {};
       try { channels = JSON.parse(r[3] || '{}'); } catch (err) {}
       const num = v => Number(String(v).replace(/,/g, '')) || 0;
-      months.push({ month: r[0], gross: num(r[1]), orders: num(r[2]), channels: channels, target: num(r[4]), updatedAt: r[5], updatedBy: r[6] });
+      let daily = {};
+      try { daily = JSON.parse(r[9] || '{}'); } catch (err) {}
+      months.push({ month: r[0], gross: num(r[1]), orders: num(r[2]), channels: channels, target: num(r[4]), updatedAt: r[5], updatedBy: r[6],
+        dailyGross: num(r[7]), dailyOrders: num(r[8]), dailyChannels: daily, dailyAt: r[10] || '' });
     });
   }
   months.sort((a, b) => a.month < b.month ? -1 : 1);
@@ -357,4 +367,32 @@ function salesParseCsv_(text) {
 // ผลที่ถูกต้อง: Execution log ขึ้นชื่อโฟลเดอร์ "data"
 function authorizeDrive() {
   Logger.log(DriveApp.getFolderById(SALES_FOLDER_ID).getName());
+}
+
+// ---------- ยอดรายวันที่แอดมินอัปเอง ----------
+// body.months = [{ month: '2026-11', channels: { 'Shopee A5': { g: 1234, o: 10 }, ... } }]
+// อัปทีละช่องทางได้ ช่องทางที่ไม่ได้ส่งมาจะคงค่าเดิม
+function salesDaily_(body) {
+  const sh = salesSheet_();
+  const out = [];
+  (body.months || []).forEach(m => {
+    if (!/^\d{4}-\d{2}$/.test(m.month || '')) return;
+    let row = salesFind_(sh, m.month);
+    if (!row) {
+      sh.appendRow([m.month, '', '', '', '', new Date(), body.by || '']);
+      row = sh.getLastRow();
+    }
+    let cur = {};
+    try { cur = JSON.parse(sh.getRange(row, 10).getValue() || '{}'); } catch (err) {}
+    Object.keys(m.channels || {}).forEach(k => {
+      const c = m.channels[k] || {};
+      cur[k] = { g: Math.round((Number(c.g) || 0) * 100) / 100, o: Number(c.o) || 0 };
+    });
+    let g = 0, o = 0;
+    Object.keys(cur).forEach(k => { g += cur[k].g; o += cur[k].o; });
+    sh.getRange(row, 8, 1, 4).setValues([[Math.round(g * 100) / 100, o, JSON.stringify(cur), new Date()]]);
+    sh.getRange(row, 6, 1, 2).setValues([[new Date(), body.by || '']]);
+    out.push({ month: m.month, gross: g, orders: o });
+  });
+  return { ok: true, months: out };
 }

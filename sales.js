@@ -1,5 +1,6 @@
 // หน้า "ยอดขาย": ยอดขายรายเดือน (บาท) + แถบความคืบหน้าเทียบเป้า
-// ข้อมูลอยู่ในแท็บ "ยอดขายรายเดือน" ของชีต แอดมินอัปไฟล์ CSV สรุปยอดขายเพื่ออัปเดต
+// ยอดเดือนปัจจุบัน = ยอดรายวันที่แอดมินอัปจากไฟล์ออเดอร์ Shopee/TikTok (+ Line ที่กรอก)
+// พอไฟล์สรุปของ Dashboard มาถึง Drive (หลังวันที่ 15 เดือนถัดไป) จะใช้ยอดของ Dashboard แทน และแสดงผลเทียบให้แอดมิน
 (() => {
   "use strict";
 
@@ -47,7 +48,11 @@
       const res = await fetch(`${API}?action=sales_list${force ? "&force=1" : ""}`);
       const data = await res.json();
       if (!data.ok || !Array.isArray(data.months)) throw new Error();
-      months = data.months;
+      months = data.months.map((m) => {
+        const final = Number(m.gross) || 0;
+        const daily = Number(m.dailyGross) || 0;
+        return { ...m, final, finalOrders: m.orders, daily, gross: final > 0 ? final : daily, source: final > 0 ? "dashboard" : daily > 0 ? "daily" : "" };
+      });
       applyDefaultTarget();
       const t = data.syncedAt ? new Date(data.syncedAt) : null;
       $("#salesSyncInfo").textContent = data.sync && data.sync.error
@@ -114,6 +119,7 @@
           <span class="sales-eyebrow">${isCur ? "เดือนนี้" : "เดือนล่าสุด"} · ${esc(monthLabel(show.month, true))}</span>
         </div>
         <div class="sales-big">${baht(show.gross)}</div>
+        <p class="sales-src">${show.source === "dashboard" ? "✓ ยอดยืนยันจาก Dashboard" : show.source === "daily" ? `ยอดรายวัน · อัปล่าสุด ${esc(show.dailyAt)}` : ""}</p>
         ${show.target > 0 ? `
           ${show.passed && show.passed.length ? `<div class="sales-cheer">🎉 ทะลุเป้า ${baht(show.passed[show.passed.length - 1])} แล้ว! เป้าใหม่ ${baht(show.target)}</div>` : ""}
           ${progressBar(show.gross, show.target, pace, show.passed)}
@@ -123,7 +129,7 @@
           </div>
           ${isCur ? `<p class="hint">ขีดสีเขียวบนแถบ = ยอดที่ควรถึงภายในวันนี้ (วันที่ ${now.getDate()} จาก ${daysInMonth} วัน)</p>` : ""}`
         : `<p class="hint">ยังไม่ได้ตั้งเป้าของเดือนนี้</p>`}
-        ${isCur && !(show.gross > 0) ? `<p class="hint">ยอดเดือนนี้จะขึ้นเมื่อมีไฟล์สรุปยอดขายของเดือนนี้ใน Google Drive</p>` : ""}`;
+        ${isCur && !(show.gross > 0) ? `<p class="hint">ยอดเดือนนี้จะขึ้นเมื่อแอดมินอัปไฟล์ออเดอร์ของวันนี้</p>` : ""}`;
     }
 
     // รายการย้อนหลัง (ใหม่ → เก่า)
@@ -134,7 +140,7 @@
           const pct = m.target > 0 ? Math.round((m.gross / m.target) * 100) : null;
           return `
           <div class="sales-row">
-            <span class="sales-month">${esc(monthLabel(m.month))}</span>
+            <span class="sales-month">${esc(monthLabel(m.month))}${m.source === "daily" ? `<small>รายวัน</small>` : ""}</span>
             <div class="sales-track">
               <div class="sales-fill ${pct != null && pct >= 100 ? "done" : ""}" style="width:${(m.gross / max) * 100}%"></div>
               ${m.target > 0 ? `<div class="sales-target-mark" style="left:${(m.target / max) * 100}%" title="เป้า ${baht(m.target)}"></div>` : ""}
@@ -145,6 +151,7 @@
       : `<p class="hint">ยังไม่มีข้อมูล</p>`;
 
     renderTargetMonths();
+    renderCompare();
   }
 
   function currentName() {
@@ -193,7 +200,134 @@
     }
   }
 
+  // ---------------- admin: เทียบยอดรายวันกับ Dashboard ----------------
+  function renderCompare() {
+    const box = $("#salesCompare");
+    const now = new Date();
+    const rows = months.filter((m) => m.daily > 0 || m.final > 0).slice().reverse();
+    const due = (m) => { const [y, mo] = m.month.split("-").map(Number); return now >= new Date(y, mo, 16); }; // วันที่ 16 ของเดือนถัดไป
+    const items = rows.filter((m) => m.daily > 0 && (m.final > 0 || due(m)));
+    if (!items.length) { box.innerHTML = `<p class="hint">ยังไม่มีเดือนที่ต้องเทียบ</p>`; return; }
+    box.innerHTML = items.map((m) => {
+      if (!(m.final > 0)) return `<div class="sales-cmp warn"><b>${esc(monthLabel(m.month, true))}</b> ถึงกำหนดเทียบแล้ว แต่ยังไม่มีไฟล์ของ Dashboard ใน Drive (ยอดรายวัน ${baht(m.daily)})</div>`;
+      const names = [...new Set([...Object.keys(m.channels || {}), ...Object.keys(m.dailyChannels || {})])];
+      const diff = m.daily - m.final;
+      const pct = m.final ? (diff / m.final) * 100 : 0;
+      const ok = Math.abs(diff) < 1;
+      return `<div class="sales-cmp ${ok ? "ok" : "warn"}">
+        <div class="row-between"><b>${esc(monthLabel(m.month, true))}</b><span>${ok ? "✓ ตรงกัน" : `ต่าง ${diff > 0 ? "+" : ""}${baht(diff).replace("฿-", "-฿")} (${pct > 0 ? "+" : ""}${pct.toFixed(1)}%)`}</span></div>
+        <div class="table-wrap"><table class="sum-table">
+          <thead><tr><th>ช่องทาง</th><th>รายวัน</th><th>Dashboard</th><th>ต่าง</th></tr></thead>
+          <tbody>${names.map((n) => {
+            const d = (m.dailyChannels[n] || {}).g || 0;
+            const f = Number(m.channels[n]) || 0;
+            return `<tr><td>${esc(n)}</td><td>${baht(d)}</td><td>${baht(f)}</td><td>${Math.abs(d - f) < 1 ? "–" : (d - f > 0 ? "+" : "") + Math.round(d - f).toLocaleString("th-TH")}</td></tr>`;
+          }).join("")}
+          <tr><td><b>รวม</b></td><td><b>${baht(m.daily)}</b></td><td><b>${baht(m.final)}</b></td><td><b>${ok ? "–" : (diff > 0 ? "+" : "") + Math.round(diff).toLocaleString("th-TH")}</b></td></tr></tbody>
+        </table></div>
+        <p class="hint">ตอนนี้แอปแสดงยอดของ Dashboard สำหรับเดือนนี้</p>
+      </div>`;
+    }).join("");
+  }
+
+  // ---------------- admin: อัปยอดรายวัน ----------------
+  const XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+  let daily = null; // { months: { 'YYYY-MM': { channel: {g,o} } }, notes: [] }
+
+  function loadScript(src) {
+    return new Promise((ok, fail) => {
+      if ([...document.scripts].some((x) => x.src === src)) return ok();
+      const el = document.createElement("script");
+      el.src = src;
+      el.onload = ok;
+      el.onerror = () => fail(new Error("โหลดตัวอ่าน Excel ไม่สำเร็จ เช็คอินเทอร์เน็ต"));
+      document.head.appendChild(el);
+    });
+  }
+
+  async function readDailyFiles(files) {
+    const prev = $("#dailyPreview");
+    prev.innerHTML = `<p class="hint">กำลังอ่านไฟล์…</p>`;
+    const merged = {};
+    const notes = [];
+    for (const f of files) {
+      try {
+        let rows;
+        if (/\.xlsx$/i.test(f.name)) {
+          await loadScript(XLSX_URL);
+          const wb = window.XLSX.read(await f.arrayBuffer(), { type: "array" });
+          rows = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: "" });
+        } else {
+          rows = window.DailyParse.parseCsv(await f.text());
+        }
+        const r = window.DailyParse.parseRows(rows);
+        if (r.error) { notes.push(`⚠️ ${f.name}: ${r.error}`); continue; }
+        for (const [month, chans] of Object.entries(r.months)) {
+          merged[month] = merged[month] || {};
+          for (const [name, v] of Object.entries(chans)) merged[month][name] = v;
+        }
+        notes.push(`${r.platform}: ${r.orders} ออเดอร์ (ไม่นับยกเลิก ${r.skipped.cancelled}${r.skipped.unpaid ? `, ยังไม่ชำระ ${r.skipped.unpaid}` : ""})`);
+      } catch (err) {
+        notes.push(`⚠️ ${f.name}: อ่านไม่ได้ (${err.message || err})`);
+      }
+    }
+    daily = { months: merged, notes };
+    renderDaily();
+  }
+
+  function lineValue() {
+    const v = String($("#dailyLine").value).replace(/[,\s฿]/g, "");
+    return v === "" ? null : Number(v);
+  }
+
+  function renderDaily() {
+    const prev = $("#dailyPreview");
+    const line = lineValue();
+    const thisMonth = ymOf(new Date());
+    const mons = { ...((daily && daily.months) || {}) };
+    if (line != null && line >= 0) mons[thisMonth] = { ...(mons[thisMonth] || {}), Line: { g: line, o: 0 } };
+    const keys = Object.keys(mons).sort();
+    $("#dailySend").disabled = !keys.length;
+    if (!keys.length) { prev.innerHTML = daily ? daily.notes.map((n) => `<p class="hint">${esc(n)}</p>`).join("") : ""; return; }
+    prev.innerHTML = `
+      ${daily ? `<p class="hint">${daily.notes.map(esc).join(" · ")}</p>` : ""}
+      ${keys.map((k) => {
+        const chans = mons[k];
+        const old = (months.find((m) => m.month === k) || {}).dailyChannels || {};
+        const all = { ...old, ...chans };
+        const total = Object.values(all).reduce((a, c) => a + (c.g || 0), 0);
+        return `<div class="table-wrap"><table class="sum-table">
+          <thead><tr><th>${esc(monthLabel(k, true))}</th><th>ยอด</th><th>ออเดอร์</th></tr></thead>
+          <tbody>${Object.entries(all).map(([n, c]) => `<tr><td>${esc(n)}${chans[n] ? "" : ` <span class="muted">(ค่าเดิม)</span>`}</td><td>${baht(c.g)}</td><td>${c.o || "–"}</td></tr>`).join("")}
+          <tr><td><b>รวมทั้งเดือน</b></td><td><b>${baht(total)}</b></td><td></td></tr></tbody>
+        </table></div>`;
+      }).join("")}`;
+    $("#dailySend").onclick = () => sendDaily(mons);
+  }
+
+  async function sendDaily(mons) {
+    const btn = $("#dailySend");
+    btn.disabled = true;
+    btn.textContent = "กำลังส่ง…";
+    try {
+      await post({ action: "sales_daily", by: currentName(), months: Object.entries(mons).map(([month, channels]) => ({ month, channels })) });
+      toast("✅ อัปยอดวันนี้แล้ว");
+      daily = null;
+      $("#dailyFile").value = "";
+      $("#dailyLine").value = "";
+      $("#dailyPreview").innerHTML = `<p class="hint">✅ อัปยอดเรียบร้อย</p>`;
+      await pull();
+    } catch (err) {
+      toast("ส่งไม่สำเร็จ: " + err.message);
+      btn.disabled = false;
+    } finally {
+      btn.textContent = "ส่งยอดวันนี้";
+    }
+  }
+
   // ---------------- init ----------------
+  $("#dailyFile").addEventListener("change", (e) => { if (e.target.files.length) readDailyFiles([...e.target.files]); });
+  $("#dailyLine").addEventListener("input", renderDaily);
   $("#salesRefresh").addEventListener("click", () => pull(true));
   $("#salesSyncNow").addEventListener("click", async (e) => {
     e.target.disabled = true;
