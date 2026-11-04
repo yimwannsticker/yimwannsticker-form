@@ -200,6 +200,8 @@
     }
   }
 
+  const EST_KEY = "ยอดประมาณทั้งเดือน";
+
   // ---------------- admin: เทียบยอดรายวันกับ Dashboard ----------------
   function renderCompare() {
     const box = $("#salesCompare");
@@ -213,7 +215,9 @@
       const names = [...new Set([...Object.keys(m.channels || {}), ...Object.keys(m.dailyChannels || {})])];
       // เทียบเฉพาะช่องทางที่อัปรายวัน (Line เพิ่มทีหลังใน Dashboard ตอนสิ้นเดือน)
       const cmpNames = names.filter((n) => m.dailyChannels[n]);
-      const finalCmp = cmpNames.reduce((a, n) => a + (Number(m.channels[n]) || 0), 0);
+      // ยอดประมาณทั้งเดือน (ไม่แยกช่องทาง) เทียบกับยอดรวมทั้งหมดของ Dashboard
+      const totalOnly = Object.keys(m.dailyChannels || {}).length === 1 && m.dailyChannels[EST_KEY];
+      const finalCmp = totalOnly ? m.final : cmpNames.reduce((a, n) => a + (Number(m.channels[n]) || 0), 0);
       const diff = m.daily - finalCmp;
       const pct = finalCmp ? (diff / finalCmp) * 100 : 0;
       const ok = Math.abs(diff) < 1;
@@ -221,7 +225,7 @@
         <div class="row-between"><b>${esc(monthLabel(m.month, true))}</b><span>${ok ? "✓ ตรงกัน" : `ต่าง ${diff > 0 ? "+" : ""}${baht(diff).replace("฿-", "-฿")} (${pct > 0 ? "+" : ""}${pct.toFixed(1)}%)`}</span></div>
         <div class="table-wrap"><table class="sum-table">
           <thead><tr><th>ช่องทาง</th><th>รายวัน</th><th>Dashboard</th><th>ต่าง</th></tr></thead>
-          <tbody>${names.map((n) => {
+          <tbody>${(totalOnly ? [] : names).map((n) => {
             const f = Number(m.channels[n]) || 0;
             if (!m.dailyChannels[n]) return `<tr class="muted"><td>${esc(n)}</td><td>ไม่ได้อัปรายวัน</td><td>${baht(f)}</td><td>ไม่นับ</td></tr>`;
             const d = m.dailyChannels[n].g || 0;
