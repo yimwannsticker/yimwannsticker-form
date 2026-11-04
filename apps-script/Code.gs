@@ -312,7 +312,7 @@ function salesTarget_(body) {
 // อ่านใหม่เฉพาะไฟล์ที่เปลี่ยน และเช็คโฟลเดอร์อย่างมากทุก 10 นาที
 
 const SALES_FOLDER_ID = '1RlF400ua4edfipIlRO_ExvbFp0IZpFd0';
-const SALES_SYNC_EVERY_MIN = 10;
+const SALES_SYNC_EVERY_MIN = 180; // ไฟล์ Dashboard มาเดือนละครั้ง เช็คทุก 3 ชั่วโมงพอ (กดปุ่ม ⟳ เพื่อดึงทันทีได้)
 
 function salesSyncFromDrive_(force) {
   const props = PropertiesService.getScriptProperties();

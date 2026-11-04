@@ -42,29 +42,56 @@
     return data;
   }
 
+  // แสดงข้อมูลชุดล่าสุดที่เคยโหลดไว้ในเครื่องทันที แล้วค่อยดึงของใหม่จากชีตมาแทน
+  const LS_CACHE = "sales_cache_v1";
+  let loading = null;
+
+  function apply(data) {
+    months = data.months.map((m) => {
+      const final = Number(m.gross) || 0;
+      const daily = Number(m.dailyGross) || 0;
+      return { ...m, final, finalOrders: m.orders, daily, gross: final > 0 ? final : daily, source: final > 0 ? "dashboard" : daily > 0 ? "daily" : "" };
+    });
+    applyDefaultTarget();
+    const t = data.syncedAt ? new Date(data.syncedAt) : null;
+    $("#salesSyncInfo").textContent = data.sync && data.sync.error
+      ? "ดึงจาก Drive ไม่สำเร็จ: " + data.sync.error
+      : t ? `ดึงจาก Drive ล่าสุด ${t.toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "";
+    render();
+  }
+
+  function showCached() {
+    try {
+      const c = JSON.parse(localStorage.getItem(LS_CACHE));
+      if (c && Array.isArray(c.months)) { apply(c); $("#salesNow").classList.add("stale"); return true; }
+    } catch {}
+    return false;
+  }
+
   async function pull(showToast, force) {
     if (!API) { $("#salesNow").innerHTML = `<p class="hint">ยังไม่ได้ตั้งค่า Google Sheet</p>`; return; }
-    try {
-      const res = await fetch(`${API}?action=sales_list${force ? "&force=1" : ""}`);
-      const data = await res.json();
-      if (!data.ok || !Array.isArray(data.months)) throw new Error();
-      months = data.months.map((m) => {
-        const final = Number(m.gross) || 0;
-        const daily = Number(m.dailyGross) || 0;
-        return { ...m, final, finalOrders: m.orders, daily, gross: final > 0 ? final : daily, source: final > 0 ? "dashboard" : daily > 0 ? "daily" : "" };
-      });
-      applyDefaultTarget();
-      const t = data.syncedAt ? new Date(data.syncedAt) : null;
-      $("#salesSyncInfo").textContent = data.sync && data.sync.error
-        ? "ดึงจาก Drive ไม่สำเร็จ: " + data.sync.error
-        : t ? `ดึงจาก Drive ล่าสุด ${t.toLocaleString("th-TH", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "";
-      render();
-      if (showToast) toast("อัปเดตแล้ว");
-    } catch {
-      $("#salesNow").innerHTML = `<p class="pack-warn">โหลดยอดขายไม่สำเร็จ ถ้าเพิ่งเพิ่มฟีเจอร์นี้ ต้องอัปเดตโค้ด Apps Script ก่อน</p>`;
-      $("#salesList").innerHTML = "";
-    }
+    if (loading && !force) return loading;
+    const hadCache = !months.length && showCached();
+    loading = (async () => {
+      try {
+        const res = await fetch(`${API}?action=sales_list${force ? "&force=1" : ""}`);
+        const data = await res.json();
+        if (!data.ok || !Array.isArray(data.months)) throw new Error();
+        try { localStorage.setItem(LS_CACHE, JSON.stringify(data)); } catch {}
+        apply(data);
+        $("#salesNow").classList.remove("stale");
+        if (showToast) toast("อัปเดตแล้ว");
+      } catch {
+        if (hadCache || months.length) { toast("โหลดยอดล่าสุดไม่สำเร็จ แสดงข้อมูลที่โหลดไว้ก่อนหน้า"); return; }
+        $("#salesNow").innerHTML = `<p class="pack-warn">โหลดยอดขายไม่สำเร็จ ลองกดรีเฟรชอีกครั้ง</p>`;
+        $("#salesList").innerHTML = "";
+      } finally {
+        loading = null;
+      }
+    })();
+    return loading;
   }
+
 
   // เป้ากลางจาก config: ใช้กับเดือนที่ยังไม่ได้ตั้งเป้าเอง ตั้งแต่ SALES_TARGET_FROM เป็นต้นไป
   function applyDefaultTarget() {
@@ -341,4 +368,7 @@
   window.addEventListener("viewchange", (e) => {
     if (e.detail === "sales") pull();
   });
+  // โหลดล่วงหน้าตั้งแต่เปิดแอป เปิดแท็บยอดขายแล้วจะขึ้นทันที
+  showCached();
+  setTimeout(() => pull(), 1500);
 })();

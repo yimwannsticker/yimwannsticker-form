@@ -94,7 +94,7 @@
   Shopee = รวมราคาขายสุทธิ − ส่วนลดที่ร้านออก, TikTok = Subtotal ก่อนส่วนลด − ส่วนลดของร้าน, แยก Shopee A5/A3 แบบเดียวกับ Dashboard)
   (ไม่รวม Line ซึ่งจะมากับไฟล์ Dashboard ตอนสิ้นเดือน) เก็บในคอลัมน์ H–K ของแท็บ `ยอดขายรายเดือน`
 - **ยอด Dashboard (ยอดจริง):** Apps Script อ่านไฟล์สรุปยอดขายรายเดือน (`*full_month*.csv` บรรทัดแรก `Weekly Sales YYYY-MM-DD to YYYY-MM-DD`)
-  ในโฟลเดอร์ Google Drive `sales-dashboard › data` (ID ใน `SALES_FOLDER_ID` ของ Code.gs) เช็คไฟล์ใหม่ทุก 10 นาทีตอนมีคนเปิดแท็บ
+  ในโฟลเดอร์ Google Drive `sales-dashboard › data` (ID ใน `SALES_FOLDER_ID` ของ Code.gs) เช็คไฟล์ใหม่ทุก 3 ชั่วโมงตอนมีคนเปิดแอป (ปุ่ม ⟳ ดึงทันที)
   อ่านแค่บรรทัด Subtotal / GRAND TOTAL / Total orders แล้วเก็บยอดรวมต่อเดือนในแท็บ `ยอดขายรายเดือน` ของชีต (ไม่เก็บข้อมูลลูกค้า)
   ไฟล์ของเดือนเดียวกันที่แก้ล่าสุดจะถูกใช้ เป้าที่ตั้งไว้ไม่หาย
 - **เดือนใหม่:** วางไฟล์ `…_full_month.csv` ของเดือนนั้นลงโฟลเดอร์ data ใน Drive แค่นั้น
