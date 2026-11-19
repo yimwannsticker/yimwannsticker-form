@@ -133,24 +133,42 @@
     loadScript(SCANNER).catch(() => {});
   }
 
+  // กล้องแต่ละรอบมีกล่องของตัวเองใน #packReader และต้องปิดรอบเก่าให้เสร็จก่อนเปิดรอบใหม่
+  // (เคยมีปัญหา: งานปิดกล้องเก่าที่ช้า ไปปิดวิดีโอของกล้องใหม่ → จอดำ/ค้าง ต้องออกเข้าใหม่)
+  let stopping = Promise.resolve();
+  let starting = false;
+  let boxSeq = 0;
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
   async function startScan() {
     if (needEmployee()) return;
     cameraWanted = true;
     if (scanner) { resumeScan(); return; }
+    if (starting) return;
+    starting = true;
     $("#packScanBtn").disabled = true;
+    let sc = null;
     try {
       await loadScript(SCANNER);
+      await stopping;
+      if (!cameraWanted) return;
       const F = window.Html5QrcodeSupportedFormats;
-      $("#packReader").hidden = false;
+      const reader = $("#packReader");
+      reader.hidden = false;
+      reader.classList.remove("paused");
       $("#packStopBtn").hidden = false;
       $("#packScanBtn").hidden = true;
       scanPaused = false;
-      const sc = new window.Html5Qrcode("packReader", {
+      const box = document.createElement("div");
+      box.id = "packReaderBox" + ++boxSeq;
+      reader.appendChild(box);
+      sc = new window.Html5Qrcode(box.id, {
         // อ่านเฉพาะ QR code (เร็วกว่าอ่านหลายแบบพร้อมกันมาก) บาร์โค้ดใช้ช่องพิมพ์/เครื่องยิงแทน
         formatsToSupport: [F.QR_CODE],
         experimentalFeatures: { useBarCodeDetectorIfSupported: true },
         verbose: false,
       });
+      sc.box = box;
       scanner = sc;
       await sc.start(
         { facingMode: "environment" },
@@ -163,13 +181,15 @@
         () => {}
       );
       // ระหว่างรอกล้องเปิด ผู้ใช้สลับแอพ/กดปิดไปแล้ว → ปิดกล้องตัวนี้ทิ้ง
-      if (scanner !== sc) { sc.stop().catch(() => {}); return; }
+      if (scanner !== sc) { closeCamera(sc); return; }
       armIdle(IDLE_SCAN_MS, autoOff);
     } catch (err) {
-      stopScan();
+      if (sc && scanner === sc) stopScan();
+      else if (sc) closeCamera(sc);
       const msg = String(err && (err.message || err));
       toast(/Permission|NotAllowed/i.test(msg) ? "ไม่ได้รับอนุญาตให้ใช้กล้อง ไปเปิดสิทธิ์กล้องในการตั้งค่าเบราว์เซอร์" : "เปิดกล้องไม่ได้: " + msg);
     } finally {
+      starting = false;
       $("#packScanBtn").disabled = false;
     }
   }
@@ -194,13 +214,35 @@
     armIdle(PAUSED_MAX_MS, () => stopScan(true));
   }
 
+  // สตรีมกล้องยังใช้ได้อยู่ไหม (มือถือบางรุ่นตัดกล้องทิ้งเองตอนพักนาน)
+  function cameraLive(sc) {
+    return [...sc.box.querySelectorAll("video")].some((v) =>
+      v.srcObject && v.srcObject.getVideoTracks && v.srcObject.getVideoTracks().some((t) => t.readyState === "live"));
+  }
+
+  function restartScan() {
+    stopScan(true);
+    startScan();
+  }
+
   function resumeScan() {
     if (!cameraWanted) return;
     if (!scanner) { startScan(); return; }
+    const sc = scanner;
     scanPaused = false;
-    try { scanner.resume(); } catch {}
     $("#packReader").classList.remove("paused");
     $("#packReader").scrollIntoView({ behavior: "smooth", block: "center" });
+    try {
+      if (!cameraLive(sc)) throw new Error("camera ended");
+      sc.resume();
+    } catch {
+      restartScan();
+      return;
+    }
+    // วิดีโอไม่กลับมาเล่นภายใน 1.5 วิ (ไลบรารีจะค้างสถานะพักไว้) → เปิดกล้องใหม่
+    setTimeout(() => {
+      if (scanner === sc && !scanPaused && sc.getState && sc.getState() !== 2 /* SCANNING */) restartScan();
+    }, 1500);
     armIdle(IDLE_SCAN_MS, autoOff);
   }
 
@@ -211,6 +253,24 @@
     toast("ปิดกล้องให้แล้วเพื่อประหยัดแบต กด “📷 สแกนใบปะ” เพื่อสแกนต่อ");
   }
 
+  // ปิดกล้องตัวนี้ให้ขาดจริง แล้วลบกล่องของมันทิ้ง (แตะเฉพาะวิดีโอของตัวเอง ไม่ยุ่งกับกล้องรอบใหม่)
+  function closeCamera(sc) {
+    const vids = [...sc.box.querySelectorAll("video")];
+    const release = () => {
+      vids.forEach((v) => {
+        (v.srcObject && v.srcObject.getTracks ? v.srcObject.getTracks() : []).forEach((t) => t.stop());
+        v.srcObject = null;
+      });
+      sc.box.remove();
+    };
+    let p;
+    try { p = Promise.resolve(sc.stop()); } catch { p = Promise.resolve(); }
+    // ไลบรารีบางทีหยุดช้ามาก (เช่น เพิ่งกลับจากพื้นหลัง) → รอไม่เกิน 1.5 วิ แล้วตัดเอง
+    const done = Promise.race([p.catch(() => {}), wait(1500)]).then(release, release);
+    stopping = stopping.then(() => done);
+    return done;
+  }
+
   // keepWanted = ปิดกล้องชั่วคราว (พักนาน/สลับแอพ) แล้วเปิดให้ใหม่ตอนสแกนกล่องถัดไป
   function stopScan(keepWanted) {
     const s = scanner;
@@ -218,15 +278,7 @@
     scanPaused = false;
     if (keepWanted !== true) cameraWanted = false;
     clearTimeout(idleTimer);
-    if (s) {
-      // ปิดกล้องให้ขาดจริง แม้ไลบรารีจะ error ระหว่างหยุด (ไม่งั้นไฟกล้องค้าง กินแบตต่อ)
-      const release = () => document.querySelectorAll("#packReader video").forEach((v) => {
-        (v.srcObject && v.srcObject.getTracks ? v.srcObject.getTracks() : []).forEach((t) => t.stop());
-      });
-      try {
-        s.stop().catch(release).finally(() => { release(); try { s.clear && s.clear(); } catch {} });
-      } catch { release(); }
-    }
+    if (s) closeCamera(s);
     $("#packReader").hidden = true;
     $("#packReader").classList.remove("paused");
     $("#packStopBtn").hidden = true;
