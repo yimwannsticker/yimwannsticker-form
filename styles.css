@@ -500,3 +500,11 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 .sales-now.stale .sales-src::after { content: " · กำลังอัปเดต…"; }
 .daily-late ul { margin: 6px 0; }
 .daily-late-ok { display: flex; gap: 8px; align-items: center; margin-top: 8px; font-weight: 500; }
+
+/* ค้นหาว่าใครแพ็ค */
+.pack-find-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.pack-find-list li { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: grid; gap: 3px; }
+.find-who { color: var(--ok); font-size: 1.05rem; }
+.find-who.pending { color: #b07800; }
+.find-ids { font-size: 0.9rem; word-break: break-all; }
+.find-items { font-size: 0.82rem; }

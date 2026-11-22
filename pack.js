@@ -552,6 +552,54 @@
     return window.matchMedia("(min-width: 900px)").matches;
   }
 
+  // ---------------- ค้นหาว่าใครแพ็ค ----------------
+  const normId = (v) => String(v || "").replace(/^'/, "").replace(/\s+/g, "").toUpperCase();
+
+  function findCard(o) {
+    const items = (o.items || []).map((it) => `${esc(skuOf(it) || it.name)} ×${Number(it.qty) || 0}`).join(", ");
+    const who = o.packedBy
+      ? `<b class="find-who">✅ ${esc(o.packedBy)}</b> <span class="muted">แพ็คเมื่อ ${esc(timeTH(o.packedAt))}</span>`
+      : `<b class="find-who pending">⏳ ยังไม่มีคนแพ็ค</b>${o.cleared ? ` <span class="muted">(ล้างออกจากรายการรอแพ็คแล้ว)</span>` : ""}`;
+    return `<li>
+      <div>${who}</div>
+      <div class="find-ids">คำสั่งซื้อ <b>${esc(o.orderId || "-")}</b> · พัสดุ ${esc(o.tracking)}</div>
+      ${items ? `<div class="muted find-items">${items}${o.qty ? ` (รวม ${o.qty} แผ่น)` : ""}</div>` : ""}
+      ${o.uploadedAt ? `<div class="muted find-items">อัปใบปะ ${esc(timeTH(o.uploadedAt))}${o.uploadedBy ? ` โดย ${esc(o.uploadedBy)}` : ""}</div>` : ""}
+    </li>`;
+  }
+
+  function showFind(list, note) {
+    const box = $("#packFindResult");
+    if (!list.length) { box.innerHTML = `<p class="pack-warn">ไม่พบเลขนี้${note ? "<br>" + note : ""}</p>`; return; }
+    box.innerHTML = `<ul class="pack-find-list">${list.map(findCard).join("")}</ul>${note ? `<p class="hint">${note}</p>` : ""}`;
+  }
+
+  async function findPacker(raw) {
+    const q = normId(raw);
+    const box = $("#packFindResult");
+    if (q.length < 4) { box.innerHTML = `<p class="pack-warn">พิมพ์อย่างน้อย 4 ตัว</p>`; return; }
+    // ค้นในรายการที่โหลดไว้แล้วก่อน (14 วันล่าสุด) ให้เห็นผลทันที
+    const local = orders.filter((o) => normId(o.tracking).includes(q) || normId(o.orderId).includes(q)).slice(0, 20);
+    if (local.length) showFind(local, "กำลังค้นย้อนหลังทั้งหมด…");
+    else box.innerHTML = `<p class="muted">กำลังค้นหา…</p>`;
+    try {
+      const res = await fetch(`${API}?action=pack_search&q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (!Array.isArray(data.results)) throw new Error("old");
+      if (normId($("#packFindInput").value) !== q) return; // พิมพ์เลขใหม่ไปแล้ว
+      // คิวที่บันทึกในเครื่องแต่ยังส่งไม่ถึงชีต
+      for (const o of data.results) {
+        const job = !o.packedBy && queue.find((j) => j.tracking === o.tracking);
+        if (job) { o.packedBy = job.by; o.packedAt = new Date().toISOString(); }
+      }
+      showFind(data.results);
+    } catch (err) {
+      showFind(local, err.message === "old"
+        ? "ค้นได้แค่ 14 วันล่าสุด — ต้องอัปเดตโค้ด Apps Script ก่อน ถึงจะค้นย้อนหลังทั้งหมดได้"
+        : "ค้นย้อนหลังไม่สำเร็จ (เน็ต?) แสดงเฉพาะ 14 วันล่าสุด");
+    }
+  }
+
   // ---------------- init ----------------
   renderEmployees();
   if (wide()) $("#packAdmin").open = true;
@@ -567,6 +615,11 @@
     if (v) lookup(v);
   });
   $("#packRefresh").addEventListener("click", () => pull(true));
+  $("#packFind").addEventListener("submit", (e) => {
+    e.preventDefault();
+    $("#packFindInput").blur();
+    findPacker($("#packFindInput").value);
+  });
   $("#packFile").addEventListener("change", (e) => {
     const f = e.target.files[0];
     if (f) readPdf(f);

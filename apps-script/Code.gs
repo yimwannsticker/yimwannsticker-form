@@ -65,6 +65,7 @@ function json_(obj) {
 function doGet(e) {
   try {
     if (e && e.parameter && e.parameter.action === 'pack_list') return json_(packList_());
+    if (e && e.parameter && e.parameter.action === 'pack_search') return json_(packSearch_(e.parameter.q));
     if (e && e.parameter && e.parameter.action === 'sales_list') return json_(salesList_(e.parameter.force === '1'));
     const records = readRows_(getSheet_(), HEADER.length).map(toRecord_);
     const trash = readRows_(getSheet_(TRASH_NAME, TRASH_HEADER), TRASH_HEADER.length).map(r => {
@@ -191,6 +192,43 @@ function packList_() {
     });
   });
   return { ok: true, orders: orders };
+}
+
+// ค้นหาว่าใครแพ็ค: ใส่เลขคำสั่งซื้อหรือเลขพัสดุ (ทั้งเลขหรือบางส่วนอย่างน้อย 4 ตัว)
+// ค้นทุกแถวในชีต ไม่จำกัด 14 วัน รวมแถวที่ย้ายไปแท็บ "เช็คแพ็ค-ล้างแล้ว"
+const PACK_CLEARED_NAME = 'เช็คแพ็ค-ล้างแล้ว';
+function packSearch_(q) {
+  const norm = v => String(v || '').replace(/^'/, '').replace(/\s+/g, '').toUpperCase();
+  q = norm(q);
+  if (q.length < 4) return { ok: true, results: [], error: 'พิมพ์อย่างน้อย 4 ตัว' };
+  const results = [];
+  const scan = (rows, cleared) => {
+    for (let i = rows.length - 1; i >= 0 && results.length < 20; i--) {
+      const r = rows[i];
+      const t = norm(r[0]), o = norm(r[1]);
+      if (!t) continue;
+      if (t.indexOf(q) < 0 && o.indexOf(q) < 0) continue;
+      let items = [];
+      try { items = JSON.parse(r[8] || '[]'); } catch (err) {}
+      results.push({
+        tracking: String(r[0]),
+        orderId: String(r[1]).replace(/^'/, ''),
+        qty: Number(r[3]) || 0,
+        items: items,
+        uploadedAt: r[4] ? new Date(r[4]).toISOString() : '',
+        uploadedBy: String(r[5] || ''),
+        packedBy: String(r[6] || ''),
+        packedAt: r[7] ? new Date(r[7]).toISOString() : '',
+        exact: t === q || o === q,
+        cleared: cleared,
+      });
+    }
+  };
+  scan(packRows_(packSheet_()), false);
+  const cs = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PACK_CLEARED_NAME);
+  if (cs && cs.getLastRow() > 1) scan(cs.getRange(2, 1, cs.getLastRow() - 1, PACK_HEADER.length).getValues(), true);
+  results.sort((a, b) => (b.exact ? 1 : 0) - (a.exact ? 1 : 0));
+  return { ok: true, results: results };
 }
 
 function packUpload_(body) {

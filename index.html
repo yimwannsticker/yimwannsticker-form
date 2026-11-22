@@ -195,6 +195,16 @@
       <div id="packProgress" class="pack-progress"></div>
     </section>
 
+    <section class="card">
+      <h2>🔎 ค้นหาว่าใครแพ็ค</h2>
+      <form class="pack-manual" id="packFind" autocomplete="off">
+        <input id="packFindInput" inputmode="text" placeholder="เลขคำสั่งซื้อ หรือ เลขพัสดุ" aria-label="เลขคำสั่งซื้อหรือเลขพัสดุ" />
+        <button class="btn ghost" type="submit">ค้นหา</button>
+      </form>
+      <p class="hint">ใส่ทั้งเลข หรือบางส่วนก็ได้ (อย่างน้อย 4 ตัว) ค้นย้อนหลังได้ทุกวัน</p>
+      <div id="packFindResult"></div>
+    </section>
+
     </div>
 
     <details class="card pack-admin" id="packAdmin">
