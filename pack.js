@@ -113,6 +113,41 @@
     return seller || it.sku;
   }
 
+  // ---------------- สีจากชื่อ SKU ----------------
+  // ลายที่มีหลายสี ชื่อ SKU จะมีสีเป็นท่อนหนึ่ง เช่น "03-100%-01,ขาว" / "33-25บาท-แดง"
+  // ต้องเป็นทั้งท่อน (คั่นด้วย - หรือ ,) จึงนับเป็นสี — "ชาเขียว", "มะม่วง", "ฝอยทอง" ไม่นับ
+  const COLORS = [
+    // [ชื่อที่ใช้ได้, สีพื้น, สีตัวอักษร]
+    [["ดำ", "black"], "#161616", "#fff"],
+    [["ขาว", "white"], "#ffffff", "#161616"],
+    [["แดง", "red"], "#d62828", "#fff"],
+    [["ม่วง", "purple"], "#7b3fa0", "#fff"],
+    [["เขียว", "green"], "#2e9e44", "#fff"],
+    [["ฟ้า", "sky"], "#5bb8ea", "#10283a"],
+    [["น้ำเงิน", "กรม", "navy", "blue"], "#1f3f9e", "#fff"],
+    [["เหลือง", "yellow"], "#ffd60a", "#2b2300"],
+    [["ชมพู", "pink"], "#f48fb1", "#3a0d1c"],
+    [["ส้ม", "orange"], "#f77f00", "#fff"],
+    [["น้ำตาล", "brown"], "#7a4a24", "#fff"],
+    [["เทา", "gray", "grey"], "#8a8a8a", "#fff"],
+    [["ทอง", "gold"], "#c9a227", "#231a00"],
+    [["เงิน", "silver"], "#c4c7cc", "#161616"],
+  ];
+  const COLOR_BY = new Map();
+  COLORS.forEach(([names, bg, fg]) => names.forEach((n) => COLOR_BY.set(n.toLowerCase(), { name: names[0], bg, fg })));
+  // PDF บางไฟล์เขียน "ำ" เป็น "ํ"+"า" (ดํา, น้ําเงิน)
+  const fixAm = (t) => String(t || "").replace(/\u0E4D([\u0E48-\u0E4B]?)\u0E32/g, "$1\u0E33");
+  function colorOf(it) {
+    for (const src of [it.sellerSku, it.sku]) {
+      const parts = fixAm(src).split(/[-,/|()]/).map((x) => x.trim().toLowerCase().replace(/^สี\s*/, "")).filter(Boolean);
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const c = COLOR_BY.get(parts[i]);
+        if (c) return c;
+      }
+    }
+    return null;
+  }
+
   // ---------------- scan ----------------
   // ระหว่างแพ็ค กล้องค้างไว้แบบ "พัก" (หยุดอ่านภาพ ไม่กินแบต) → กล่องถัดไปสแกนต่อได้ทันที
   // ประหยัดแบต: ไม่มีอะไรให้สแกนนาน หรือพักนานเกิน หรือสลับไปแอพอื่น → ปิดกล้องจริง
@@ -350,15 +385,15 @@
           ${done || !o.items.length ? "" : `<button class="btn small ghost" id="packTickAll" type="button">${allTicked ? "ยกเลิกติ๊กทั้งหมด" : "☑️ ติ๊กทุกข้อ"}</button>`}
         </div>
         <ul class="pack-items">
-          ${o.items.map((it, i) => `
+          ${o.items.map((it, i) => { const c = colorOf(it); return `
             <li>
-              <button type="button" class="pack-item ${isNote(it) ? "note" : ""} ${ticked.has(i) || done ? "on" : ""}" data-i="${i}" ${done ? "disabled" : ""}>
+              <button type="button" class="pack-item ${isNote(it) ? "note" : ""} ${c ? "colored" : ""} ${ticked.has(i) || done ? "on" : ""}" data-i="${i}" ${done ? "disabled" : ""}${c ? ` style="--item-bg:${c.bg};--item-fg:${c.fg}"` : ""}>
                 <span class="pack-code">${esc(it.code || "?")}</span>
-                <span class="pack-sku"><b>${esc(skuOf(it) || "-")}</b><span class="muted">${esc(it.name)}</span></span>
+                <span class="pack-sku">${c ? `<span class="pack-color">สี${esc(c.name)}</span>` : ""}<b>${esc(skuOf(it) || "-")}</b><span class="muted">${esc(it.name)}</span></span>
                 ${isNote(it) ? `<span class="pack-qty">?<small>ดูในระบบ</small></span>` : `<span class="pack-qty">×${esc(it.qty)}<small>แผ่น</small></span>`}
                 <span class="pack-check" aria-hidden="true"></span>
               </button>
-            </li>`).join("")}
+            </li>`; }).join("")}
         </ul>
         ${done
           ? `<div class="dialog-actions"><button class="btn ghost" id="packNext" type="button">สแกนกล่องถัดไป</button><button class="btn danger" id="packUndo" type="button">ยกเลิกการแพ็ค</button></div>`
