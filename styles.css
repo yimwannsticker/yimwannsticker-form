@@ -388,7 +388,7 @@ dialog::backdrop { background: rgba(10, 30, 24, .45); backdrop-filter: blur(2px)
   background: var(--item-fg); color: var(--item-bg); border: 1px solid color-mix(in srgb, var(--item-fg) 60%, var(--item-bg));
 }
 /* ติ๊กแล้ว: ยังเห็นสีเดิม แต่ขอบเขียวหนา + เครื่องหมายถูก */
-.pack-item.colored.on { background: var(--item-bg); border-color: var(--ok); box-shadow: 0 0 0 3px var(--ok); }
+.pack-item.colored.on { background: var(--item-bg); border-color: var(--ok); box-shadow: 0 0 0 3px var(--ok); opacity: 0.5; }
 .pack-item.colored.on .pack-check { background: var(--ok); border-color: #fff; }
 .pack-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; text-align: center; }
 .pack-stats div { background: var(--surface-2); border-radius: 14px; padding: 10px 4px; display: flex; flex-direction: column; }
