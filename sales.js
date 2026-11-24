@@ -156,7 +156,7 @@
           </div>
           ${isCur ? `<p class="hint">ขีดสีเขียวบนแถบ = ยอดที่ควรถึงภายในวันนี้ (วันที่ ${now.getDate()} จาก ${daysInMonth} วัน)</p>` : ""}`
         : `<p class="hint">ยังไม่ได้ตั้งเป้าของเดือนนี้</p>`}
-        ${isCur && !(show.gross > 0) ? `<p class="hint">ยอดเดือนนี้จะขึ้นเมื่อแอดมินอัปไฟล์ออเดอร์ของวันนี้</p>` : ""}`;
+        ${isCur && !(show.gross > 0) ? `<p class="hint">ยอดเดือนนี้จะขึ้นเมื่อแอดมินอัปไฟล์ออเดอร์หรือกรอกออเดอร์ Line</p>` : ""}`;
     }
 
     // รายการย้อนหลัง (ใหม่ → เก่า)
@@ -240,7 +240,7 @@
     box.innerHTML = items.map((m) => {
       if (!(m.final > 0)) return `<div class="sales-cmp warn"><b>${esc(monthLabel(m.month, true))}</b> ถึงกำหนดเทียบแล้ว แต่ยังไม่มีไฟล์ของ Dashboard ใน Drive (ยอดรายวัน ${baht(m.daily)})</div>`;
       const names = [...new Set([...Object.keys(m.channels || {}), ...Object.keys(m.dailyChannels || {})])];
-      // เทียบเฉพาะช่องทางที่อัปรายวัน (Line เพิ่มทีหลังใน Dashboard ตอนสิ้นเดือน)
+      // เทียบเฉพาะช่องทางที่มียอดรายวัน (Line มาจากออเดอร์ที่แอดมินกรอก)
       const cmpNames = names.filter((n) => m.dailyChannels[n]);
       // ยอดประมาณทั้งเดือน (ไม่แยกช่องทาง) เทียบกับยอดรวมทั้งหมดของ Dashboard
       const totalOnly = Object.keys(m.dailyChannels || {}).length === 1 && m.dailyChannels[EST_KEY];
@@ -380,6 +380,9 @@
   window.addEventListener("viewchange", (e) => {
     if (e.detail === "sales") pull();
   });
+  // ออเดอร์ Line เปลี่ยน → ดึงยอดใหม่
+  window.addEventListener("salesdirty", async () => { try { if (loading) await loading; } catch {} pull(); });
+  window.SalesMonthLabel = monthLabel;
   // โหลดล่วงหน้าตั้งแต่เปิดแอป เปิดแท็บยอดขายแล้วจะขึ้นทันที
   showCached();
   setTimeout(() => pull(), 1500);

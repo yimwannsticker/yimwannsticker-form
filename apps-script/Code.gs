@@ -66,6 +66,7 @@ function doGet(e) {
   try {
     if (e && e.parameter && e.parameter.action === 'pack_list') return json_(packList_());
     if (e && e.parameter && e.parameter.action === 'pack_search') return json_(packSearch_(e.parameter.q));
+    if (e && e.parameter && e.parameter.action === 'line_list') return json_(lineList_(e.parameter.month));
     if (e && e.parameter && e.parameter.action === 'sales_list') return json_(salesList_(e.parameter.force === '1'));
     const records = readRows_(getSheet_(), HEADER.length).map(toRecord_);
     const trash = readRows_(getSheet_(TRASH_NAME, TRASH_HEADER), TRASH_HEADER.length).map(r => {
@@ -125,6 +126,8 @@ function doPost(e) {
     if (body.action === 'sales_upsert') return json_(salesUpsert_(body));
     if (body.action === 'sales_target') return json_(salesTarget_(body));
     if (body.action === 'sales_daily') return json_(salesDaily_(body));
+    if (body.action === 'line_save') return json_(lineSave_(body));
+    if (body.action === 'line_delete') return json_(lineDelete_(body));
 
     return json_({ ok: false, error: 'unknown action' });
   } catch (err) {
@@ -308,6 +311,19 @@ function salesList_(force) {
         dailyGross: num(r[7]), dailyOrders: num(r[8]), dailyChannels: daily, dailyAt: r[10] || '' });
     });
   }
+  // ยอด Line ที่แอดมินกรอกทีละออเดอร์ (ชีต "ออเดอร์ไลน์") รวมเข้ายอดรายวันของเดือนนั้น
+  const line = lineTotals_();
+  Object.keys(line).forEach(k => {
+    let m = months.filter(x => x.month === k)[0];
+    if (!m) { m = { month: k, gross: 0, orders: 0, channels: {}, target: 0, updatedAt: '', updatedBy: '', dailyGross: 0, dailyOrders: 0, dailyChannels: {}, dailyAt: '' }; months.push(m); }
+    delete m.dailyChannels.Line;
+    m.dailyChannels.Line = line[k];
+    let g = 0, o = 0;
+    Object.keys(m.dailyChannels).forEach(c => { g += Number(m.dailyChannels[c].g) || 0; o += Number(m.dailyChannels[c].o) || 0; });
+    m.dailyGross = Math.round(g * 100) / 100;
+    m.dailyOrders = o;
+    if (!m.dailyAt) m.dailyAt = line[k].at || '';
+  });
   months.sort((a, b) => a.month < b.month ? -1 : 1);
   const props = PropertiesService.getScriptProperties();
   return { ok: true, months: months, syncedAt: props.getProperty('SALES_SYNCED_AT') || '', sync: sync };
@@ -433,4 +449,121 @@ function salesDaily_(body) {
     out.push({ month: m.month, gross: g, orders: o });
   });
   return { ok: true, months: out };
+}
+
+
+// ================= ออเดอร์ Line =================
+// แอดมินกรอกทีละออเดอร์ตอนขายได้ ข้อมูลสะสมในชีต ไม่ต้องกรอกใหม่ตั้งแต่วันที่ 1
+// ยอดขาย = จำนวนแผ่น × ราคาต่อหน่วย (ไม่รวมค่าส่ง เหมือน Shopee/TikTok)
+const LINE_NAME = 'ออเดอร์ไลน์';
+const LINE_HEADER = ['รหัส', 'วันที่', 'ลูกค้า', 'งาน', 'ประเภทสติกเกอร์', 'จำนวนแผ่น', 'ราคาต่อหน่วย', 'ค่าส่ง',
+  'ยอดขาย (ไม่รวมค่าส่ง)', 'รวมค่าส่ง', 'บันทึกโดย', 'บันทึกเมื่อ'];
+
+function lineSheet_() {
+  const sh = getSheet_(LINE_NAME, LINE_HEADER);
+  sh.getRange('A:B').setNumberFormat('@'); // วันที่เก็บเป็นข้อความ 2026-11-24
+  return sh;
+}
+
+function lineRows_(sh) {
+  const last = sh.getLastRow();
+  if (last < 2) return [];
+  return sh.getRange(2, 1, last - 1, LINE_HEADER.length).getValues();
+}
+
+function lineRec_(r) {
+  const d = r[1] instanceof Date ? Utilities.formatDate(r[1], 'Asia/Bangkok', 'yyyy-MM-dd') : String(r[1]);
+  return { id: String(r[0]), date: d, customer: String(r[2]), job: String(r[3]), type: String(r[4]),
+    qty: Number(r[5]) || 0, unit: Number(r[6]) || 0, ship: Number(r[7]) || 0, amount: Number(r[8]) || 0, total: Number(r[9]) || 0,
+    by: String(r[10] || ''), at: r[11] ? new Date(r[11]).toISOString() : '' };
+}
+
+function lineTotals_() {
+  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(LINE_NAME);
+  const out = {};
+  if (!sh) return out;
+  lineRows_(sh).forEach(r => {
+    if (!r[0]) return;
+    const o = lineRec_(r);
+    const k = o.date.slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(k)) return;
+    const t = out[k] = out[k] || { g: 0, o: 0, at: '' };
+    t.g = Math.round((t.g + o.amount) * 100) / 100;
+    t.o += 1;
+    if (o.at > t.at) t.at = o.at;
+  });
+  Object.keys(out).forEach(k => {
+    if (out[k].at) out[k].at = Utilities.formatDate(new Date(out[k].at), 'Asia/Bangkok', 'dd/MM/yyyy');
+  });
+  return out;
+}
+
+// month = 'YYYY-MM' → ออเดอร์ของเดือนนั้น + รายชื่อลูกค้า/ประเภทที่เคยกรอก (ไว้ให้เลือกซ้ำ)
+function lineList_(month) {
+  const rows = lineRows_(lineSheet_()).filter(r => r[0]).map(lineRec_);
+  const customers = {}, types = {}, prices = {};
+  rows.forEach(o => {
+    if (o.customer) customers[o.customer] = o.date;
+    if (o.type) types[o.type] = o.date;
+    if (o.type && o.job) prices[o.job + '|' + o.type] = o.unit; // ราคาล่าสุดของประเภทนี้
+  });
+  const byDate = obj => Object.keys(obj).sort((a, b) => obj[a] < obj[b] ? 1 : -1);
+  return { ok: true, month: month || '',
+    orders: rows.filter(o => !month || o.date.slice(0, 7) === month),
+    customers: byDate(customers).slice(0, 300), types: byDate(types).slice(0, 200), prices: prices };
+}
+
+function lineSave_(body) {
+  const o = body.order || {};
+  const date = String(o.date || '');
+  const qty = Number(o.qty), unit = Number(o.unit), ship = Number(o.ship) || 0;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: 'วันที่ไม่ถูกต้อง' };
+  if (!String(o.customer || '').trim()) return { ok: false, error: 'ใส่ชื่อลูกค้า' };
+  if (o.job !== 'A5' && o.job !== 'A3') return { ok: false, error: 'เลือกงาน A5 หรือ A3' };
+  if (!(qty > 0)) return { ok: false, error: 'จำนวนแผ่นต้องมากกว่า 0' };
+  if (!(unit >= 0)) return { ok: false, error: 'ราคาต่อหน่วยไม่ถูกต้อง' };
+  const amount = Math.round(qty * unit * 100) / 100;
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh = lineSheet_();
+    const id = o.id ? String(o.id) : 'L' + Date.now();
+    const row = [id, date, String(o.customer).trim(), o.job, String(o.type || '').trim(), qty, unit, ship, amount,
+      Math.round((amount + ship) * 100) / 100, body.by || '', new Date()];
+    if (o.id) {
+      const r = lineFind_(sh, o.id);
+      if (!r) return { ok: false, error: 'ไม่พบออเดอร์นี้ (อาจถูกลบไปแล้ว)' };
+      sh.getRange(r, 1, 1, row.length).setValues([row]);
+    } else {
+      sh.appendRow(row);
+    }
+    return { ok: true, order: lineRec_(row) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function lineFind_(sh, id) {
+  const last = sh.getLastRow();
+  if (last < 2) return 0;
+  const ids = sh.getRange(2, 1, last - 1, 1).getValues();
+  for (let i = 0; i < ids.length; i++) if (String(ids[i][0]) === String(id)) return i + 2;
+  return 0;
+}
+
+function lineDelete_(body) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const sh = lineSheet_();
+    const r = lineFind_(sh, body.id);
+    if (!r) return { ok: true, missing: true };
+    // เก็บสำเนาไว้ในถังขยะของออเดอร์ไลน์ก่อนลบ
+    const trash = getSheet_(LINE_NAME + '-ลบแล้ว', LINE_HEADER.concat(['ลบโดย', 'ลบเมื่อ']));
+    trash.appendRow(sh.getRange(r, 1, 1, LINE_HEADER.length).getValues()[0].concat([body.by || '', new Date()]));
+    sh.deleteRow(r);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
 }

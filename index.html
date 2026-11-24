@@ -137,12 +137,44 @@
       </div>
       <div id="salesList" class="sales-list"></div>
     </section>
+    <details class="card sales-admin line-admin" id="lineAdmin">
+      <summary><b>💬 ออเดอร์ Line</b> <span class="muted">แอดมินกรอกทีละออเดอร์ตอนขายได้</span></summary>
+      <form class="line-form" id="lineForm" autocomplete="off">
+        <div class="line-grid">
+          <label class="line-wide"><span>ชื่อลูกค้า</span><input id="lineCustomer" list="lineCustomers" required placeholder="ชื่อในไลน์" /></label>
+          <div class="line-wide"><span class="line-label">งาน</span>
+            <div class="line-seg" role="radiogroup">
+              <label><input type="radio" name="lineJob" value="A5" required /><span>A5</span></label>
+              <label><input type="radio" name="lineJob" value="A3" /><span>A3</span></label>
+            </div>
+          </div>
+          <label class="line-wide"><span>ประเภทสติกเกอร์</span><input id="lineType" list="lineTypes" placeholder="เช่น ไดคัท กันน้ำ / PP ด้าน" /></label>
+          <label><span>จำนวนแผ่น</span><input id="lineQty" type="number" inputmode="numeric" min="1" step="1" required /></label>
+          <label><span>ราคาต่อหน่วย (บาท)</span><input id="lineUnit" type="number" inputmode="decimal" min="0" step="0.01" required /></label>
+          <label><span>ค่าส่ง (ถ้ามี)</span><input id="lineShip" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" /></label>
+          <label><span>วันที่</span><input id="lineDate" type="date" required /></label>
+        </div>
+        <datalist id="lineCustomers"></datalist>
+        <datalist id="lineTypes"></datalist>
+        <div class="line-sum" id="lineSum"></div>
+        <div class="line-actions">
+          <button class="btn ghost" id="lineCancel" type="button" hidden>ยกเลิกแก้ไข</button>
+          <button class="btn primary" id="lineSave" type="submit">บันทึกออเดอร์</button>
+        </div>
+      </form>
+      <div class="row-between line-head">
+        <select id="lineMonth" aria-label="เดือน"></select>
+        <button class="btn small ghost" id="lineExport" type="button">⬇️ Export Excel</button>
+      </div>
+      <div id="lineList"></div>
+    </details>
+
     <details class="card sales-admin" id="salesAdmin">
       <summary><b>⚙️ อัปยอดขาย / ตั้งเป้า</b> <span class="muted">สำหรับแอดมิน</span></summary>
       <h3 class="sales-sub">อัปยอดวันนี้ (ก่อนกลับบ้าน)</h3>
       <p class="hint">Export คำสั่งซื้อของเดือนนี้ (วันที่ 1 ถึงวันนี้) แล้วเลือกไฟล์ทั้งสองพร้อมกัน
         <b>Shopee:</b> Order.all…xlsx · <b>TikTok:</b> ทั้งหมด คำสั่งซื้อ…csv
-        ระบบรวมยอด Gross ไม่นับออเดอร์ที่ยกเลิก/ยังไม่ชำระ และแทนที่ยอดเดิมของช่องทางนั้น (ยอด Line จะมากับ Dashboard ตอนสิ้นเดือน)</p>
+        ระบบรวมยอด Gross ไม่นับออเดอร์ที่ยกเลิก/ยังไม่ชำระ และแทนที่ยอดเดิมของช่องทางนั้น (ยอด Line มาจากออเดอร์ที่กรอกด้านบน)</p>
       <label class="btn ghost full file-btn">
         เลือกไฟล์ออเดอร์ (.xlsx / .csv)
         <input type="file" id="dailyFile" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden />
@@ -310,7 +342,7 @@
       s.src = files[0] + "?t=" + Date.now();
       s.onload = function () { load(files.slice(1)); };
       document.body.appendChild(s);
-    })(["config.js", "app.js", "pack-parse.js", "pack.js", "daily-parse.js", "sales.js"]);
+    })(["config.js", "app.js", "pack-parse.js", "pack.js", "daily-parse.js", "sales.js", "line.js"]);
   </script>
 </body>
 </html>
