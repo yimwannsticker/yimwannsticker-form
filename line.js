@@ -156,24 +156,33 @@
   // 2) ไม่มีเรท → ใช้ราคาครั้งล่าสุดที่เคยขายงาน+ประเภทนี้
   function rateFor(j, t, qty) {
     const cfg = (CFG.LINE_RATES || {})[j];
-    const tiers = cfg && cfg.tiers && (cfg.tiers[t] || cfg.tiers["*"]);
-    if (!tiers || !t) return null;
+    if (!cfg || !cfg.tiers) return null;
+    const tiers = cfg.tiers["*"] || (t && cfg.tiers[t]); // "*" = ทุกประเภท ไม่ต้องรอเลือกประเภท
+    if (!tiers) return null;
     const hit = tiers.find(([min]) => qty >= min) || tiers[tiers.length - 1];
     const free = cfg.freeShipFrom != null && qty >= cfg.freeShipFrom;
-    return { unit: hit[1], min: hit[0], free, ship: free ? 0 : cfg.shipBelow };
+    return { unit: hit[1], min: hit[0], free, ship: free ? 0 : cfg.shipBelow, all: !!cfg.tiers["*"] };
   }
+  // เรียกเมื่อผู้ใช้เปลี่ยนจำนวน/งาน/ประเภท (รวมตอนแก้ไขออเดอร์เก่า)
   function suggestUnit() {
     const qty = num($("#lineQty").value) || 0;
     const r = rateFor(job(), typeValue(), qty);
-    $("#lineRateNote").textContent = r
-      ? `ราคาตามเรท ${job()}${(CFG.LINE_RATES[job()].tiers || {})["*"] ? "" : " " + typeValue()}${r.min > 0 ? ` (${r.min}+ แผ่น)` : ""}${r.free ? " · ส่งฟรี" : r.ship ? ` · ค่าส่ง ${r.ship} บาท` : ""}`
-      : "";
-    if (editing) return;
+    const note = $("#lineRateNote");
     if (!unitTouched) {
       const p = r ? r.unit : prices[job() + "|" + typeValue()];
       if (p != null) $("#lineUnit").value = p;
     }
     if (r && !shipTouched && qty > 0 && (r.free || r.ship != null)) $("#lineShip").value = r.free ? "" : r.ship;
+    if (!r) note.textContent = "";
+    else {
+      const label = `เรท ${job()}${r.all ? "" : " " + typeValue()}${r.min > 0 ? ` (${r.min}+ แผ่น)` : ""} = ${r.unit} บาท/แผ่น${r.free ? " · ส่งฟรี" : r.ship ? ` · ค่าส่ง ${r.ship} บาท` : ""}`;
+      const differs = num($("#lineUnit").value) !== r.unit;
+      note.innerHTML = differs
+        ? `${esc(label)} <button type="button" class="btn small ghost" id="lineUseRate">ใช้ราคาตามเรท</button>`
+        : `✓ ราคาตาม${esc(label)}`;
+      const b = $("#lineUseRate");
+      if (b) b.onclick = () => { unitTouched = false; shipTouched = false; suggestUnit(); };
+    }
     renderSum();
   }
 
@@ -202,6 +211,8 @@
     $("#lineUnit").value = o.unit;
     $("#lineShip").value = o.ship || "";
     $("#lineDate").value = o.date;
+    unitTouched = true; shipTouched = true; // ออเดอร์เก่า: คงราคาเดิมไว้ จนกว่าจะกด "ใช้ราคาตามเรท"
+    suggestUnit();
     $("#lineSave").textContent = "บันทึกการแก้ไข";
     $("#lineCancel").hidden = false;
     renderSum();
@@ -308,7 +319,7 @@
   $("#lineCancel").addEventListener("click", () => { resetForm(); renderList(); });
   ["#lineQty", "#lineUnit", "#lineShip"].forEach((s) => $(s).addEventListener("input", renderSum));
   $("#lineQty").addEventListener("input", suggestUnit);
-  $("#lineUnit").addEventListener("input", () => { unitTouched = $("#lineUnit").value !== ""; });
+  $("#lineUnit").addEventListener("input", () => { unitTouched = $("#lineUnit").value !== ""; suggestUnit(); });
   $("#lineShip").addEventListener("input", () => { shipTouched = $("#lineShip").value !== ""; });
   $("#lineType").addEventListener("change", suggestUnit);
   document.querySelectorAll('input[name="lineJob"]').forEach((r) => r.addEventListener("change", suggestUnit));

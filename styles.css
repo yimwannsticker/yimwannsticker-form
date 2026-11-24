@@ -573,3 +573,4 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 #lineType { margin-top: 8px; }
 .line-rate { margin: -4px 0 0; font-size: 0.8rem; color: var(--primary); min-height: 0; }
 .line-rate:empty { display: none; }
+.line-rate .btn { margin-left: 6px; padding: 2px 10px; min-height: 0; font-size: 0.78rem; }
