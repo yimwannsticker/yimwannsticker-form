@@ -577,10 +577,10 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 
 /* รูปสติกเกอร์แทนช่องรหัส */
 .pack-thumb {
-  position: relative; width: 76px; height: 76px; border-radius: 14px; display: grid; place-items: center;
-  background: #fff; border: 2px solid var(--accent); padding: 3px;
+  position: relative; width: 76px; height: 76px; border-radius: 14px; display: block; box-sizing: border-box; flex: none;
+  background: #fff; border: 2px solid var(--accent); padding: 6px;
 }
-.pack-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.pack-thumb img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
 .pack-thumb-code {
   position: absolute; left: -6px; top: -8px; background: var(--accent); color: var(--primary); font-weight: 700;
   font-size: 0.72rem; padding: 1px 6px; border-radius: 999px; line-height: 1.3;
