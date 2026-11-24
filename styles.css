@@ -559,3 +559,15 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 .line-amt { font-weight: 700; color: var(--primary); white-space: nowrap; }
 .line-del { width: 40px; border-radius: 12px; border: 1px solid var(--border); background: none; color: var(--muted); cursor: pointer; }
 .line-del:hover { color: #c0392b; border-color: #c0392b; }
+
+.line-types { display: flex; flex-wrap: wrap; gap: 8px; }
+.line-types label { position: relative; }
+.line-types input { position: absolute; opacity: 0; inset: 0; }
+.line-types span {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+  border: 2px solid color-mix(in srgb, var(--mc) 45%, var(--border)); background: var(--surface-2);
+  font-size: 0.95rem; font-weight: 600; color: var(--text);
+}
+.line-types input:checked + span { background: var(--mc); border-color: var(--mc); color: #fff; }
+.line-types input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+#lineType { margin-top: 8px; }

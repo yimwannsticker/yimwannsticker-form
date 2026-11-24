@@ -66,7 +66,7 @@
       prices = data.prices || {};
       loadedMonth = month;
       $("#lineCustomers").innerHTML = (data.customers || []).map((c) => `<option value="${esc(c)}"></option>`).join("");
-      $("#lineTypes").innerHTML = (data.types || []).map((c) => `<option value="${esc(c)}"></option>`).join("");
+      $("#lineTypes").innerHTML = (data.types || []).filter((t) => !MATS.includes(t)).map((c) => `<option value="${esc(c)}"></option>`).join("");
       renderList();
     } catch (err) {
       $("#lineList").innerHTML = `<p class="pack-warn">${err.message === "old" ? "ต้องอัปเดตโค้ด Apps Script (Code.gs) ก่อน ถึงจะใช้ออเดอร์ Line ได้" : "โหลดออเดอร์ Line ไม่สำเร็จ ลองใหม่อีกครั้ง"}</p>`;
@@ -116,6 +116,31 @@
 
   // ---------------- ฟอร์ม ----------------
   const job = () => (document.querySelector('input[name="lineJob"]:checked') || {}).value || "";
+  const OTHER = "__other";
+  const MATS = (CFG.MATERIALS || []).map((m) => m.name);
+
+  // ประเภทสติกเกอร์: กดเลือกจากวัสดุเดียวกับหน้าบันทึกมิเตอร์ + "อื่นๆ" ให้พิมพ์เอง
+  function renderTypes() {
+    $("#lineTypeChips").innerHTML = (CFG.MATERIALS || []).map((m) => `
+      <label style="--mc:${esc(m.color)}"><input type="radio" name="lineTypePick" value="${esc(m.name)}" /><span>${esc(m.emoji)} ${esc(m.name)}</span></label>`).join("")
+      + `<label style="--mc:#9aa7a2"><input type="radio" name="lineTypePick" value="${OTHER}" /><span>✏️ อื่นๆ</span></label>`;
+    document.querySelectorAll('input[name="lineTypePick"]').forEach((r) => r.addEventListener("change", () => {
+      const other = r.value === OTHER;
+      $("#lineType").hidden = !other;
+      if (other) $("#lineType").focus();
+      suggestUnit();
+    }));
+  }
+  function typeValue() {
+    const v = (document.querySelector('input[name="lineTypePick"]:checked') || {}).value || "";
+    return v === OTHER ? $("#lineType").value.trim() : v;
+  }
+  function setType(t) {
+    const pick = !t ? "" : MATS.includes(t) ? t : OTHER;
+    document.querySelectorAll('input[name="lineTypePick"]').forEach((r) => { r.checked = r.value === pick; });
+    $("#lineType").value = pick === OTHER ? t : "";
+    $("#lineType").hidden = pick !== OTHER;
+  }
 
   function renderSum() {
     const qty = num($("#lineQty").value), unit = num($("#lineUnit").value), ship = num($("#lineShip").value) || 0;
@@ -128,13 +153,14 @@
   // จำราคา: เลือกประเภท + งานที่เคยขาย → เติมราคาต่อหน่วยครั้งล่าสุดให้ (แก้ได้)
   function suggestUnit() {
     if (unitTouched || editing) return;
-    const p = prices[job() + "|" + $("#lineType").value.trim()];
+    const p = prices[job() + "|" + typeValue()];
     if (p != null) { $("#lineUnit").value = p; renderSum(); }
   }
 
   function resetForm(keepDate) {
     const date = $("#lineDate").value;
     $("#lineForm").reset();
+    setType("");
     $("#lineDate").value = keepDate && date ? date : ymd(new Date());
     editing = null;
     unitTouched = false;
@@ -149,7 +175,7 @@
     editing = id;
     $("#lineCustomer").value = o.customer;
     document.querySelectorAll('input[name="lineJob"]').forEach((r) => { r.checked = r.value === o.job; });
-    $("#lineType").value = o.type;
+    setType(o.type);
     $("#lineQty").value = o.qty;
     $("#lineUnit").value = o.unit;
     $("#lineShip").value = o.ship || "";
@@ -168,12 +194,13 @@
       date: $("#lineDate").value,
       customer: $("#lineCustomer").value.trim(),
       job: job(),
-      type: $("#lineType").value.trim(),
+      type: typeValue(),
       qty: num($("#lineQty").value),
       unit: num($("#lineUnit").value),
       ship: num($("#lineShip").value) || 0,
     };
     if (!order.job) { toast("เลือกงาน A5 หรือ A3"); return; }
+    if (!order.type) { toast("เลือกประเภทสติกเกอร์"); return; }
     if (!(order.qty > 0) || !(order.unit >= 0)) { toast("ใส่จำนวนแผ่นและราคาให้ถูกต้อง"); return; }
     const btn = $("#lineSave");
     btn.disabled = true;
@@ -253,6 +280,7 @@
 
   // ---------------- init ----------------
   renderMonths();
+  renderTypes();
   resetForm();
   $("#lineForm").addEventListener("submit", save);
   $("#lineCancel").addEventListener("click", () => { resetForm(); renderList(); });
