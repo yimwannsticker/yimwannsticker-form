@@ -21,6 +21,7 @@
   let editing = null;   // id ที่กำลังแก้
   let loadedMonth = "";
   let unitTouched = false;
+  let shipTouched = false;
 
   function toast(msg) {
     const el = $("#toast");
@@ -150,11 +151,30 @@
       : "";
   }
 
-  // จำราคา: เลือกประเภท + งานที่เคยขาย → เติมราคาต่อหน่วยครั้งล่าสุดให้ (แก้ได้)
+  // ราคาต่อหน่วยอัตโนมัติ (แก้เองได้ แก้แล้วจะไม่ทับ):
+  // 1) มีเรทราคา (config LINE_RATES) ของงาน+ประเภทนี้ → ใช้ขั้นราคาตามจำนวนแผ่น
+  // 2) ไม่มีเรท → ใช้ราคาครั้งล่าสุดที่เคยขายงาน+ประเภทนี้
+  function rateFor(j, t, qty) {
+    const cfg = (CFG.LINE_RATES || {})[j];
+    const tiers = cfg && cfg.tiers && (cfg.tiers[t] || cfg.tiers["*"]);
+    if (!tiers || !t) return null;
+    const hit = tiers.find(([min]) => qty >= min) || tiers[tiers.length - 1];
+    const free = cfg.freeShipFrom != null && qty >= cfg.freeShipFrom;
+    return { unit: hit[1], min: hit[0], free, ship: free ? 0 : cfg.shipBelow };
+  }
   function suggestUnit() {
-    if (unitTouched || editing) return;
-    const p = prices[job() + "|" + typeValue()];
-    if (p != null) { $("#lineUnit").value = p; renderSum(); }
+    const qty = num($("#lineQty").value) || 0;
+    const r = rateFor(job(), typeValue(), qty);
+    $("#lineRateNote").textContent = r
+      ? `ราคาตามเรท ${job()}${(CFG.LINE_RATES[job()].tiers || {})["*"] ? "" : " " + typeValue()}${r.min > 0 ? ` (${r.min}+ แผ่น)` : ""}${r.free ? " · ส่งฟรี" : r.ship ? ` · ค่าส่ง ${r.ship} บาท` : ""}`
+      : "";
+    if (editing) return;
+    if (!unitTouched) {
+      const p = r ? r.unit : prices[job() + "|" + typeValue()];
+      if (p != null) $("#lineUnit").value = p;
+    }
+    if (r && !shipTouched && qty > 0 && (r.free || r.ship != null)) $("#lineShip").value = r.free ? "" : r.ship;
+    renderSum();
   }
 
   function resetForm(keepDate) {
@@ -164,8 +184,10 @@
     $("#lineDate").value = keepDate && date ? date : ymd(new Date());
     editing = null;
     unitTouched = false;
+    shipTouched = false;
     $("#lineSave").textContent = "บันทึกออเดอร์";
     $("#lineCancel").hidden = true;
+    $("#lineRateNote").textContent = "";
     renderSum();
   }
 
@@ -285,7 +307,9 @@
   $("#lineForm").addEventListener("submit", save);
   $("#lineCancel").addEventListener("click", () => { resetForm(); renderList(); });
   ["#lineQty", "#lineUnit", "#lineShip"].forEach((s) => $(s).addEventListener("input", renderSum));
+  $("#lineQty").addEventListener("input", suggestUnit);
   $("#lineUnit").addEventListener("input", () => { unitTouched = $("#lineUnit").value !== ""; });
+  $("#lineShip").addEventListener("input", () => { shipTouched = $("#lineShip").value !== ""; });
   $("#lineType").addEventListener("change", suggestUnit);
   document.querySelectorAll('input[name="lineJob"]').forEach((r) => r.addEventListener("change", suggestUnit));
   $("#lineMonth").addEventListener("change", () => load());

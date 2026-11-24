@@ -571,3 +571,5 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 .line-types input:checked + span { background: var(--mc); border-color: var(--mc); color: #fff; }
 .line-types input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 #lineType { margin-top: 8px; }
+.line-rate { margin: -4px 0 0; font-size: 0.8rem; color: var(--primary); min-height: 0; }
+.line-rate:empty { display: none; }
