@@ -148,6 +148,49 @@
     return null;
   }
 
+  // ---------------- รูปสติกเกอร์ ----------------
+  // ลายที่มีรูปใน stickers/index.js จะแสดงรูปแทนช่องรหัส + ปุ่ม 🔍 ดูเต็มจอ
+  const normSku = (t) => fixAm(t).normalize("NFC").replace(/\s+/g, "");
+  let stickerMap = null;
+  function stickerOf(it) {
+    if (!stickerMap) {
+      stickerMap = new Map();
+      for (const [k, v] of Object.entries(window.STICKER_IMAGES || {})) stickerMap.set(normSku(k), { file: v, name: k });
+    }
+    for (const src of [skuOf(it), it.sellerSku, it.sku]) {
+      const t = String(src || "").trim();
+      if (!t) continue;
+      const hit = stickerMap.get(normSku(t)) || stickerMap.get(normSku(t.split(/[,;]/)[0]));
+      if (hit) return hit;
+    }
+    return null;
+  }
+  function codeBox(it) {
+    const st = stickerOf(it);
+    if (!st) return `<span class="pack-code">${esc(it.code || "?")}</span>`;
+    return `<span class="pack-thumb">
+        <img src="stickers/${encodeURIComponent(st.file)}.webp" alt="${esc(st.name)}" loading="lazy" />
+        ${it.code ? `<span class="pack-thumb-code">${esc(it.code)}</span>` : ""}
+        <span class="pack-zoom" role="button" tabindex="0" aria-label="ดูรูปเต็มจอ" data-zoom="${esc(st.file)}" data-name="${esc(st.name)}">🔍</span>
+      </span>`;
+  }
+  function openZoom(file, name) {
+    let d = $("#stickerZoom");
+    if (!d) {
+      d = document.createElement("div");
+      d.id = "stickerZoom";
+      d.className = "sticker-zoom";
+      d.innerHTML = `<button type="button" class="sticker-zoom-close" aria-label="ปิด">✕</button><img alt="" /><div class="sticker-zoom-name"></div>`;
+      d.addEventListener("click", () => d.classList.remove("show"));
+      document.addEventListener("keydown", (e) => { if (e.key === "Escape") d.classList.remove("show"); });
+      document.body.appendChild(d);
+    }
+    $("img", d).src = `stickers/${encodeURIComponent(file)}@full.webp`;
+    $("img", d).alt = name;
+    $(".sticker-zoom-name", d).textContent = name;
+    d.classList.add("show");
+  }
+
   // ---------------- scan ----------------
   // ระหว่างแพ็ค กล้องค้างไว้แบบ "พัก" (หยุดอ่านภาพ ไม่กินแบต) → กล่องถัดไปสแกนต่อได้ทันที
   // ประหยัดแบต: ไม่มีอะไรให้สแกนนาน หรือพักนานเกิน หรือสลับไปแอพอื่น → ปิดกล้องจริง
@@ -388,7 +431,7 @@
           ${o.items.map((it, i) => { const c = colorOf(it); return `
             <li>
               <button type="button" class="pack-item ${isNote(it) ? "note" : ""} ${c ? "colored" : ""} ${ticked.has(i) || done ? "on" : ""}" data-i="${i}" ${done ? "disabled" : ""}${c ? ` style="--item-bg:${c.bg};--item-fg:${c.fg}"` : ""}>
-                <span class="pack-code">${esc(it.code || "?")}</span>
+                ${codeBox(it)}
                 <span class="pack-sku">${c ? `<span class="pack-color">สี${esc(c.name)}</span>` : ""}<b>${esc(skuOf(it) || "-")}</b><span class="muted">${esc(it.name)}</span></span>
                 ${isNote(it) ? `<span class="pack-qty">?<small>ดูในระบบ</small></span>` : `<span class="pack-qty">×${esc(it.qty)}<small>แผ่น</small></span>`}
                 <span class="pack-check" aria-hidden="true"></span>
@@ -400,6 +443,11 @@
           : `<button class="btn primary full big" id="packDone" type="button" ${allTicked ? "" : "disabled"}>${allTicked ? "✅ ครบแล้ว บันทึกการแพ็ค" : `ติ๊กให้ครบก่อน (${ticked.size}/${o.items.length})`}</button>
              <button class="btn ghost full pack-skip" id="packCancel" type="button">ยังไม่แพ็คกล่องนี้ สแกนกล่องอื่น</button>`}
       </div>`;
+    box.querySelectorAll("[data-zoom]").forEach((z) => {
+      const go = (e) => { e.stopPropagation(); e.preventDefault(); openZoom(z.dataset.zoom, z.dataset.name); };
+      z.addEventListener("click", go);
+      z.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") go(e); });
+    });
     box.querySelectorAll(".pack-item").forEach((b) =>
       b.addEventListener("click", () => {
         const i = Number(b.dataset.i);
