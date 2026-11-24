@@ -152,11 +152,12 @@
             <div class="line-types" id="lineTypeChips" role="radiogroup"></div>
             <input id="lineType" list="lineTypes" placeholder="พิมพ์ประเภทอื่น" hidden />
           </div>
-          <label><span>จำนวนแผ่น</span><input id="lineQty" type="number" inputmode="numeric" min="1" step="1" required /></label>
+          <label><span>จำนวนแผ่น (ที่คิดเงิน)</span><input id="lineQty" type="number" inputmode="numeric" min="1" step="1" required /></label>
+          <label><span>แถม (แผ่น)</span><input id="lineFree" type="number" inputmode="numeric" min="0" step="1" placeholder="0" /></label>
           <label><span>ราคาต่อหน่วย (บาท)</span><input id="lineUnit" type="number" inputmode="decimal" min="0" step="0.01" required /></label>
-          <p class="line-wide line-rate" id="lineRateNote"></p>
           <label><span>ค่าส่ง (ถ้ามี)</span><input id="lineShip" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" /></label>
-          <label><span>วันที่</span><input id="lineDate" type="date" required /></label>
+          <p class="line-wide line-rate" id="lineRateNote"></p>
+          <label class="line-wide"><span>วันที่</span><input id="lineDate" type="date" required /></label>
         </div>
         <datalist id="lineCustomers"></datalist>
         <datalist id="lineTypes"></datalist>

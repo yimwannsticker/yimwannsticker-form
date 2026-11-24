@@ -91,20 +91,21 @@
     const sales = list.reduce((a, o) => a + o.amount, 0);
     const ship = list.reduce((a, o) => a + o.ship, 0);
     const sheets = { A5: 0, A3: 0 };
-    list.forEach((o) => { sheets[o.job] = (sheets[o.job] || 0) + o.qty; });
+    list.forEach((o) => { sheets[o.job] = (sheets[o.job] || 0) + o.qty + (o.free || 0); });
+    const freeAll = list.reduce((a, o) => a + (o.free || 0), 0);
     $("#lineExport").disabled = !list.length;
     if (!list.length) { box.innerHTML = `<p class="hint">ยังไม่มีออเดอร์ Line ของ${esc(label($("#lineMonth").value))}</p>`; return; }
     box.innerHTML = `
       <div class="line-total">
         <div><b>${money(sales)}</b><span>ยอดขาย ${list.length} ออเดอร์</span></div>
-        <div><b>${sheets.A5.toLocaleString("th-TH")} / ${sheets.A3.toLocaleString("th-TH")}</b><span>แผ่น A5 / A3</span></div>
+        <div><b>${sheets.A5.toLocaleString("th-TH")} / ${sheets.A3.toLocaleString("th-TH")}</b><span>แผ่น A5 / A3${freeAll ? ` (รวมแถม ${freeAll})` : ""}</span></div>
         <div><b>${money(ship)}</b><span>ค่าส่ง (ไม่นับในยอด)</span></div>
       </div>
       <ul class="line-list">${list.map((o) => `
         <li class="${editing === o.id ? "editing" : ""}">
           <button type="button" class="line-row" data-edit="${esc(o.id)}" title="แตะเพื่อแก้ไข">
             <span class="line-date">${esc(dayLabel(o.date))}</span>
-            <span class="line-main"><b>${esc(o.customer)}</b><span class="muted">${esc(o.job)}${o.type ? " · " + esc(o.type) : ""} · ${o.qty} แผ่น × ${money(o.unit)}${o.ship ? ` · ส่ง ${money(o.ship)}` : ""}</span></span>
+            <span class="line-main"><b>${esc(o.customer)}</b><span class="muted">${esc(o.job)}${o.type ? " · " + esc(o.type) : ""} · ${o.qty} แผ่น × ${money(o.unit)}${o.free ? ` · 🎁 แถม ${o.free}` : ""}${o.ship ? ` · ส่ง ${money(o.ship)}` : ""}</span></span>
             <span class="line-amt">${money(o.amount)}</span>
           </button>
           <button type="button" class="line-del" data-del="${esc(o.id)}" aria-label="ลบ">✕</button>
@@ -144,10 +145,10 @@
   }
 
   function renderSum() {
-    const qty = num($("#lineQty").value), unit = num($("#lineUnit").value), ship = num($("#lineShip").value) || 0;
+    const qty = num($("#lineQty").value), unit = num($("#lineUnit").value), ship = num($("#lineShip").value) || 0, free = num($("#lineFree").value) || 0;
     const amt = qty > 0 && unit >= 0 ? qty * unit : 0;
     $("#lineSum").innerHTML = amt || ship
-      ? `ยอดขาย <b>${money(amt)}</b>${ship ? ` + ค่าส่ง ${money(ship)} = ลูกค้าจ่าย <b>${money(amt + ship)}</b>` : ""}`
+      ? `ยอดขาย <b>${money(amt)}</b>${ship ? ` + ค่าส่ง ${money(ship)} = ลูกค้าจ่าย <b>${money(amt + ship)}</b>` : ""}${free ? `<br>🎁 แถม ${free} แผ่น (ไม่คิดเงิน) · ส่งทั้งหมด ${qty + free} แผ่น` : ""}`
       : "";
   }
 
@@ -208,6 +209,7 @@
     document.querySelectorAll('input[name="lineJob"]').forEach((r) => { r.checked = r.value === o.job; });
     setType(o.type);
     $("#lineQty").value = o.qty;
+    $("#lineFree").value = o.free || "";
     $("#lineUnit").value = o.unit;
     $("#lineShip").value = o.ship || "";
     $("#lineDate").value = o.date;
@@ -229,12 +231,13 @@
       job: job(),
       type: typeValue(),
       qty: num($("#lineQty").value),
+      free: num($("#lineFree").value) || 0,
       unit: num($("#lineUnit").value),
       ship: num($("#lineShip").value) || 0,
     };
     if (!order.job) { toast("เลือกงาน A5 หรือ A3"); return; }
     if (!order.type) { toast("เลือกประเภทสติกเกอร์"); return; }
-    if (!(order.qty > 0) || !(order.unit >= 0)) { toast("ใส่จำนวนแผ่นและราคาให้ถูกต้อง"); return; }
+    if (!(order.qty > 0) || !(order.unit >= 0) || !(order.free >= 0)) { toast("ใส่จำนวนแผ่นและราคาให้ถูกต้อง"); return; }
     const btn = $("#lineSave");
     btn.disabled = true;
     const was = btn.textContent;
@@ -297,15 +300,15 @@
     const tq = list.reduce((a, o) => a + o.qty, 0), tg = Math.round(list.reduce((a, o) => a + o.amount, 0) * 100) / 100;
     dash.push(["", "", "", "", "Line Subtotal", tq, tg, 0, tg]);
     // แผ่น 2: รายละเอียดครบทุกช่อง
-    const detail = [["วันที่", "ลูกค้า", "งาน", "ประเภทสติกเกอร์", "จำนวนแผ่น", "ราคาต่อหน่วย", "ยอดขาย (ไม่รวมค่าส่ง)", "ค่าส่ง", "รวมค่าส่ง", "บันทึกโดย"]];
-    list.forEach((o) => detail.push([o.date, o.customer, o.job, o.type, o.qty, o.unit, o.amount, o.ship, o.total, o.by]));
+    const detail = [["วันที่", "ลูกค้า", "งาน", "ประเภทสติกเกอร์", "จำนวนแผ่น (คิดเงิน)", "แถม (แผ่น)", "ราคาต่อหน่วย", "ยอดขาย (ไม่รวมค่าส่ง)", "ค่าส่ง", "รวมค่าส่ง", "บันทึกโดย"]];
+    list.forEach((o) => detail.push([o.date, o.customer, o.job, o.type, o.qty, o.free || 0, o.unit, o.amount, o.ship, o.total, o.by]));
     const ts = Math.round(list.reduce((a, o) => a + o.ship, 0) * 100) / 100;
-    detail.push(["รวม", "", "", "", tq, "", tg, ts, Math.round((tg + ts) * 100) / 100, ""]);
+    detail.push(["รวม", "", "", "", tq, list.reduce((a, o) => a + (o.free || 0), 0), "", tg, ts, Math.round((tg + ts) * 100) / 100, ""]);
     const wb = X.utils.book_new();
     const s1 = X.utils.aoa_to_sheet(dash);
     s1["!cols"] = [8, 16, 18, 22, 8, 10, 10, 6, 10].map((w) => ({ wch: w }));
     const s2 = X.utils.aoa_to_sheet(detail);
-    s2["!cols"] = [11, 22, 6, 24, 10, 12, 18, 8, 10, 12].map((w) => ({ wch: w }));
+    s2["!cols"] = [11, 22, 6, 24, 12, 10, 12, 18, 8, 10, 12].map((w) => ({ wch: w }));
     X.utils.book_append_sheet(wb, s1, "Dashboard");
     X.utils.book_append_sheet(wb, s2, "รายละเอียด");
     X.writeFile(wb, `line_orders_${month}.xlsx`);
@@ -317,7 +320,7 @@
   resetForm();
   $("#lineForm").addEventListener("submit", save);
   $("#lineCancel").addEventListener("click", () => { resetForm(); renderList(); });
-  ["#lineQty", "#lineUnit", "#lineShip"].forEach((s) => $(s).addEventListener("input", renderSum));
+  ["#lineQty", "#lineUnit", "#lineShip", "#lineFree"].forEach((s) => $(s).addEventListener("input", renderSum));
   $("#lineQty").addEventListener("input", suggestUnit);
   $("#lineUnit").addEventListener("input", () => { unitTouched = $("#lineUnit").value !== ""; suggestUnit(); });
   $("#lineShip").addEventListener("input", () => { shipTouched = $("#lineShip").value !== ""; });

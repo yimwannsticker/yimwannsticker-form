@@ -457,11 +457,14 @@ function salesDaily_(body) {
 // ยอดขาย = จำนวนแผ่น × ราคาต่อหน่วย (ไม่รวมค่าส่ง เหมือน Shopee/TikTok)
 const LINE_NAME = 'ออเดอร์ไลน์';
 const LINE_HEADER = ['รหัส', 'วันที่', 'ลูกค้า', 'งาน', 'ประเภทสติกเกอร์', 'จำนวนแผ่น', 'ราคาต่อหน่วย', 'ค่าส่ง',
-  'ยอดขาย (ไม่รวมค่าส่ง)', 'รวมค่าส่ง', 'บันทึกโดย', 'บันทึกเมื่อ'];
+  'ยอดขาย (ไม่รวมค่าส่ง)', 'รวมค่าส่ง', 'บันทึกโดย', 'บันทึกเมื่อ', 'แผ่นแถม'];
 
 function lineSheet_() {
   const sh = getSheet_(LINE_NAME, LINE_HEADER);
   sh.getRange('A:B').setNumberFormat('@'); // วันที่เก็บเป็นข้อความ 2026-11-24
+  if (sh.getLastColumn() < LINE_HEADER.length) {
+    sh.getRange(1, 1, 1, LINE_HEADER.length).setValues([LINE_HEADER]).setFontWeight('bold');
+  }
   return sh;
 }
 
@@ -475,7 +478,7 @@ function lineRec_(r) {
   const d = r[1] instanceof Date ? Utilities.formatDate(r[1], 'Asia/Bangkok', 'yyyy-MM-dd') : String(r[1]);
   return { id: String(r[0]), date: d, customer: String(r[2]), job: String(r[3]), type: String(r[4]),
     qty: Number(r[5]) || 0, unit: Number(r[6]) || 0, ship: Number(r[7]) || 0, amount: Number(r[8]) || 0, total: Number(r[9]) || 0,
-    by: String(r[10] || ''), at: r[11] ? new Date(r[11]).toISOString() : '' };
+    by: String(r[10] || ''), at: r[11] ? new Date(r[11]).toISOString() : '', free: Number(r[12]) || 0 };
 }
 
 function lineTotals_() {
@@ -516,12 +519,13 @@ function lineList_(month) {
 function lineSave_(body) {
   const o = body.order || {};
   const date = String(o.date || '');
-  const qty = Number(o.qty), unit = Number(o.unit), ship = Number(o.ship) || 0;
+  const qty = Number(o.qty), unit = Number(o.unit), ship = Number(o.ship) || 0, free = Number(o.free) || 0;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: 'วันที่ไม่ถูกต้อง' };
   if (!String(o.customer || '').trim()) return { ok: false, error: 'ใส่ชื่อลูกค้า' };
   if (o.job !== 'A5' && o.job !== 'A3') return { ok: false, error: 'เลือกงาน A5 หรือ A3' };
   if (!(qty > 0)) return { ok: false, error: 'จำนวนแผ่นต้องมากกว่า 0' };
   if (!(unit >= 0)) return { ok: false, error: 'ราคาต่อหน่วยไม่ถูกต้อง' };
+  if (!(free >= 0)) return { ok: false, error: 'จำนวนแผ่นแถมไม่ถูกต้อง' };
   const amount = Math.round(qty * unit * 100) / 100;
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -529,7 +533,7 @@ function lineSave_(body) {
     const sh = lineSheet_();
     const id = o.id ? String(o.id) : 'L' + Date.now();
     const row = [id, date, String(o.customer).trim(), o.job, String(o.type || '').trim(), qty, unit, ship, amount,
-      Math.round((amount + ship) * 100) / 100, body.by || '', new Date()];
+      Math.round((amount + ship) * 100) / 100, body.by || '', new Date(), free];
     if (o.id) {
       const r = lineFind_(sh, o.id);
       if (!r) return { ok: false, error: 'ไม่พบออเดอร์นี้ (อาจถูกลบไปแล้ว)' };
