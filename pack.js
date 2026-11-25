@@ -160,7 +160,14 @@
     for (const src of [skuOf(it), it.sellerSku, it.sku]) {
       const t = String(src || "").trim();
       if (!t) continue;
-      const hit = stickerMap.get(normSku(t)) || stickerMap.get(normSku(t.split(/[,;]/)[0]));
+      const n = normSku(t);
+      let hit = stickerMap.get(n) || stickerMap.get(normSku(t.split(/[,;]/)[0]));
+      // ชื่อที่มีอย่างอื่นต่อท้าย เช่น "95-ซานต้า-A5" / "95-ซานต้า(ใหญ่)" → ใช้รูปของ "95-ซานต้า" (เลือกชื่อที่ยาวที่สุดที่ตรง)
+      if (!hit) {
+        for (const [k, v] of stickerMap) {
+          if (n.startsWith(k) && /^[-,;(_/|]/.test(n.slice(k.length)) && (!hit || k.length > normSku(hit.name).length)) hit = v;
+        }
+      }
       if (hit) return hit;
     }
     return null;
