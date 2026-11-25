@@ -150,7 +150,7 @@
 
   // ---------------- รูปสติกเกอร์ ----------------
   // ลายที่มีรูปใน stickers/index.js จะแสดงรูปแทนช่องรหัส + ปุ่ม 🔍 ดูเต็มจอ
-  const normSku = (t) => fixAm(t).normalize("NFC").replace(/\s+/g, "");
+  const normSku = (t) => fixAm(t).normalize("NFC").replace(/\s+/g, "").toUpperCase(); // ไม่สนช่องว่าง/ตัวพิมพ์เล็ก-ใหญ่ ("89-BROWNIE 05" = "89-Brownie05")
   let stickerMap = null;
   function stickerOf(it) {
     if (!stickerMap) {
