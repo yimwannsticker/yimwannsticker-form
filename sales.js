@@ -409,7 +409,9 @@
   // ---------------- init ----------------
   $("#dailyFile").addEventListener("change", (e) => { if (e.target.files.length) readDailyFiles([...e.target.files]); });
 
-  if (CFG.SALES_DASHBOARD_URL) { $("#salesDashLink").href = CFG.SALES_DASHBOARD_URL; $("#salesDashLink").hidden = false; }
+  // หน้าเว็บ (index.html) อาจยังเป็นเวอร์ชันเก่าที่เบราว์เซอร์จำไว้ ถ้าไม่มีปุ่มก็ข้ามไป ไม่ให้ทั้งหน้าค้าง
+  const dash = $("#salesDashLink");
+  if (dash && CFG.SALES_DASHBOARD_URL) { dash.href = CFG.SALES_DASHBOARD_URL; dash.hidden = false; }
   $("#salesRefresh").addEventListener("click", () => pull(true));
   $("#salesSyncNow").addEventListener("click", async (e) => {
     e.target.disabled = true;
