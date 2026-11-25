@@ -409,6 +409,7 @@
   // ---------------- init ----------------
   $("#dailyFile").addEventListener("change", (e) => { if (e.target.files.length) readDailyFiles([...e.target.files]); });
 
+  if (CFG.SALES_DASHBOARD_URL) { $("#salesDashLink").href = CFG.SALES_DASHBOARD_URL; $("#salesDashLink").hidden = false; }
   $("#salesRefresh").addEventListener("click", () => pull(true));
   $("#salesSyncNow").addEventListener("click", async (e) => {
     e.target.disabled = true;

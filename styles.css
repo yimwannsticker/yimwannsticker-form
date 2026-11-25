@@ -613,3 +613,13 @@ img.brand-icon { object-fit: contain; background: #ffffff; border: 1px solid var
 .sales-split-legend small { font-size: 0.75rem; }
 .sales-split-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 .sales-split-mini { display: block; font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ลิงก์แดชบอร์ดเต็ม */
+.sales-dash-link { display: flex; align-items: center; gap: 14px; text-decoration: none; color: var(--text); border: 2px solid var(--primary); }
+.sales-dash-link:hover { background: color-mix(in srgb, var(--primary) 6%, var(--surface)); }
+.sales-dash-link:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.sales-dash-ico { font-size: 1.8rem; line-height: 1; }
+.sales-dash-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.sales-dash-text b { color: var(--primary); font-size: 1.02rem; }
+.sales-dash-text small { color: var(--muted); font-size: 0.8rem; }
+.sales-dash-go { font-size: 1.3rem; color: var(--primary); font-weight: 700; }
