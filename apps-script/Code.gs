@@ -67,6 +67,7 @@ function doGet(e) {
     if (e && e.parameter && e.parameter.action === 'pack_list') return json_(packList_());
     if (e && e.parameter && e.parameter.action === 'pack_search') return json_(packSearch_(e.parameter.q));
     if (e && e.parameter && e.parameter.action === 'line_list') return json_(lineList_(e.parameter.month));
+    if (e && e.parameter && e.parameter.action === 'dash_files') return json_(dashFiles_(e.parameter.since));
     if (e && e.parameter && e.parameter.action === 'sales_list') return json_(salesList_(e.parameter.force === '1'));
     const records = readRows_(getSheet_(), HEADER.length).map(toRecord_);
     const trash = readRows_(getSheet_(TRASH_NAME, TRASH_HEADER), TRASH_HEADER.length).map(r => {
@@ -603,4 +604,41 @@ function lineDelete_(body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+
+// ================= ข้อมูลให้แดชบอร์ดเวอร์ชั่นเต็มบนเว็บ (dashboard.html) =================
+// ส่งไฟล์ *full_month*.csv ในโฟลเดอร์ Drive ที่แก้ไขหลังวันที่ since (yyyy-MM-dd) เดือนละไฟล์
+// ตัดชื่อผู้ซื้อ (คอลัมน์ที่ 4) ออกก่อนส่ง เพราะหน้าเว็บเป็นสาธารณะ
+function dashFiles_(since) {
+  const sinceMs = /^\d{4}-\d{2}-\d{2}$/.test(since || '') ? new Date(since + 'T00:00:00+07:00').getTime() + 864e5 : 0;
+  const best = {};
+  const it = DriveApp.getFolderById(SALES_FOLDER_ID).getFiles();
+  while (it.hasNext()) {
+    const f = it.next();
+    const name = f.getName();
+    if (!/full_month/i.test(name) || !/\.csv$/i.test(name)) continue;
+    const t = f.getLastUpdated().getTime();
+    if (t < sinceMs) continue;
+    const text = f.getBlob().getDataAsString('UTF-8').replace(/^\uFEFF/, '');
+    const rows = Utilities.parseCsv(text);
+    let month = '', orderRows = 0;
+    rows.forEach(r => {
+      const m = String(r[0] || '').match(/(\d{4}-\d{2})-\d{2}\s+to\s+/);
+      if (m && !month) month = m[1];
+      if (/^(Shopee|TikTok Shop|Line)$/.test(String(r[0] || '').trim())) { orderRows++; if (r.length > 3) r[3] = ''; }
+    });
+    if (!month || !orderRows) continue; // ไฟล์สรุปที่ไม่มีรายการออเดอร์ ไม่ส่ง
+    const cur = best[month];
+    if (!cur || t > cur.t) best[month] = { t: t, name: name, text: dashCsv_(rows), updated: Utilities.formatDate(new Date(t), 'Asia/Bangkok', 'yyyy-MM-dd') };
+  }
+  const files = Object.keys(best).sort().map(k => ({ name: best[k].name, text: best[k].text, updated: best[k].updated }));
+  return { ok: true, files: files };
+}
+
+function dashCsv_(rows) {
+  return rows.map(r => r.map(v => {
+    v = String(v == null ? '' : v);
+    return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  }).join(',')).join('\n') + '\n';
 }

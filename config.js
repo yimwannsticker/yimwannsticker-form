@@ -15,9 +15,9 @@ window.APP_CONFIG = {
   SALES_TARGET: [300000, 500000],
   SALES_TARGET_FROM: "2026-11",
 
-  // ลิงก์แดชบอร์ดยอดขายเวอร์ชั่นเต็ม (artifact "Yimwann Sticker · Sales Dashboard")
-  // ลิงก์นี้เปิดเวอร์ชันล่าสุดเสมอ อัปเดตแดชบอร์ดหลักแล้วไม่ต้องแก้ที่นี่
-  SALES_DASHBOARD_URL: "https://claude.ai/artifact/M37BQ3LQFzk1Nqub46c6E7",
+  // แดชบอร์ดยอดขายเวอร์ชั่นเต็ม (dashboard.html บนเว็บนี้ ไม่มีชื่อลูกค้า/เงินเดือน)
+  // ข้อมูลเดือนใหม่ดึงจาก Google Drive อัตโนมัติ ถ้าแดชบอร์ดหลักเปลี่ยนหน้าตา ให้สร้างใหม่ด้วย tools/build_dashboard.py
+  SALES_DASHBOARD_URL: "dashboard.html",
 
   // เรทราคาออเดอร์ Line (บาท/แผ่น) ใช้เติมราคาต่อหน่วย (และค่าส่ง) ให้อัตโนมัติตามจำนวนแผ่น
   // tiers: [จำนวนขั้นต่ำ, ราคาต่อแผ่น] เรียงจากมากไปน้อย · "*" = ทุกประเภท

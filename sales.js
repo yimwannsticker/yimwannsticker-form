@@ -416,10 +416,8 @@
     dash = document.createElement("a");
     dash.id = "salesDashLink";
     dash.className = "card sales-dash-link";
-    dash.target = "_blank";
-    dash.rel = "noopener";
     dash.innerHTML = `<span class="sales-dash-ico" aria-hidden="true">📊</span>
-      <span class="sales-dash-text"><b>เปิดแดชบอร์ดเวอร์ชั่นเต็ม</b><small>Sales Dashboard ตัวหลัก · เปิดเวอร์ชันล่าสุดเสมอ</small></span>
+      <span class="sales-dash-text"><b>เปิดแดชบอร์ดเวอร์ชั่นเต็ม</b><small>กราฟ ยอดรายวัน สินค้าขายดี ออเดอร์ ยกเลิก/คืนเงิน ภูมิภาค</small></span>
       <span class="sales-dash-go" aria-hidden="true">↗</span>`;
     // สไตล์สำรอง เผื่อไฟล์ styles.css ในเครื่องยังเป็นตัวเก่า
     if (!document.getElementById("salesDashCss")) {
