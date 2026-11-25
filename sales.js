@@ -110,6 +110,41 @@
     months.sort((a, b) => (a.month < b.month ? -1 : 1));
   }
 
+  // ---------------- แยกยอดงาน A5 / A3 ----------------
+  // Dashboard: ใช้ค่าที่สรุปจากไฟล์ (finalSplit) · รายวัน: Shopee แยกตามช่องทาง, TikTok/Line ใช้ a3 ที่คำนวณจากรายการ
+  function splitOf(m) {
+    if (m.source === "dashboard" && m.finalSplit) return m.finalSplit;
+    if (m.source !== "daily") return null;
+    let a5 = 0, a3 = 0, other = 0;
+    for (const [n, c] of Object.entries(m.dailyChannels || {})) {
+      const g = Number(c.g) || 0;
+      if (/A3$/.test(n)) a3 += g;
+      else if (/A5$/.test(n)) a5 += g;
+      else if (c.a3 != null) { a3 += Number(c.a3) || 0; a5 += g - (Number(c.a3) || 0); }
+      else other += g;
+    }
+    return { a5, a3, other };
+  }
+
+  function splitBlock(sp, compact) {
+    if (!sp) return "";
+    const tot = sp.a5 + sp.a3 + (sp.other || 0);
+    if (!(tot > 0) || !(sp.a5 + sp.a3 > 0)) return "";
+    const pct = (v) => Math.round((v / tot) * 100);
+    if (compact) return `<small class="sales-split-mini">A5 ${baht(sp.a5)} · A3 ${baht(sp.a3)}</small>`;
+    return `
+      <div class="sales-split">
+        <div class="sales-split-bar" aria-hidden="true">
+          <span class="a5" style="width:${(sp.a5 / tot) * 100}%"></span><span class="a3" style="width:${(sp.a3 / tot) * 100}%"></span>${sp.other > 0 ? `<span class="ot" style="width:${(sp.other / tot) * 100}%"></span>` : ""}
+        </div>
+        <div class="sales-split-legend">
+          <span><i class="a5"></i>งาน A5 <b>${baht(sp.a5)}</b> <small>${pct(sp.a5)}%</small></span>
+          <span><i class="a3"></i>งาน A3 <b>${baht(sp.a3)}</b> <small>${pct(sp.a3)}%</small></span>
+          ${sp.other > 0.5 ? `<span><i class="ot"></i>ยังไม่แยก <b>${baht(sp.other)}</b></span>` : ""}
+        </div>
+      </div>`;
+  }
+
   // ---------------- staff view ----------------
   function progressBar(gross, target, paceRatio, passed) {
     const pct = target > 0 ? (gross / target) * 100 : 0;
@@ -147,6 +182,7 @@
         </div>
         <div class="sales-big">${baht(show.gross)}</div>
         <p class="sales-src">${show.source === "dashboard" ? "✓ ยอดยืนยันจาก Dashboard" : show.source === "daily" ? `ยอดรายวัน · อัปล่าสุด ${esc(show.dailyAt)}` : ""}</p>
+        ${splitBlock(splitOf(show))}
         ${show.target > 0 ? `
           ${show.passed && show.passed.length ? `<div class="sales-cheer">🎉 ทะลุเป้า ${baht(show.passed[show.passed.length - 1])} แล้ว! เป้าใหม่ ${baht(show.target)}</div>` : ""}
           ${progressBar(show.gross, show.target, pace, show.passed)}
@@ -172,7 +208,7 @@
               <div class="sales-fill ${pct != null && pct >= 100 ? "done" : ""}" style="width:${(m.gross / max) * 100}%"></div>
               ${m.target > 0 ? `<div class="sales-target-mark" style="left:${(m.target / max) * 100}%" title="เป้า ${baht(m.target)}"></div>` : ""}
             </div>
-            <span class="sales-val">${baht(m.gross)}${pct != null ? `<small class="${pct >= 100 || (m.passed && m.passed.length) ? "ok" : ""}">${pct >= 100 ? "✓ ถึงเป้า" : m.passed && m.passed.length ? `✓ ทะลุ ${Math.round(m.passed[m.passed.length - 1] / 1000)}K · ${pct}% ของ ${Math.round(m.target / 1000)}K` : pct + "% ของเป้า"}</small>` : ""}</span>
+            <span class="sales-val">${baht(m.gross)}${splitBlock(splitOf(m), true)}${pct != null ? `<small class="${pct >= 100 || (m.passed && m.passed.length) ? "ok" : ""}">${pct >= 100 ? "✓ ถึงเป้า" : m.passed && m.passed.length ? `✓ ทะลุ ${Math.round(m.passed[m.passed.length - 1] / 1000)}K · ${pct}% ของ ${Math.round(m.target / 1000)}K` : pct + "% ของเป้า"}</small>` : ""}</span>
           </div>`;
         }).join("")
       : `<p class="hint">ยังไม่มีข้อมูล</p>`;

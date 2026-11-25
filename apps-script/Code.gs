@@ -274,7 +274,7 @@ const SALES_NAME = 'ยอดขายรายเดือน';
 // คอลัมน์ B–D = ยอดจาก Dashboard (ไฟล์ full_month ใน Drive, สรุปหลังวันที่ 15 เดือนถัดไป)
 // คอลัมน์ H–K = ยอดรายวันที่แอดมินอัปเอง (Gross จากไฟล์ออเดอร์ Shopee/TikTok + ยอด Line ที่กรอก)
 const SALES_HEADER = ['เดือน', 'ยอดขาย Dashboard (บาท)', 'ออเดอร์ Dashboard', 'Dashboard แยกช่องทาง (JSON)', 'เป้า (บาท)', 'อัปเดตเมื่อ', 'อัปเดตโดย',
-  'ยอดรายวัน (บาท)', 'ออเดอร์รายวัน', 'รายวันแยกช่องทาง (JSON)', 'อัปรายวันเมื่อ'];
+  'ยอดรายวัน (บาท)', 'ออเดอร์รายวัน', 'รายวันแยกช่องทาง (JSON)', 'อัปรายวันเมื่อ', 'Dashboard แยก A5/A3 (JSON)'];
 
 function salesSheet_() {
   const sh = getSheet_(SALES_NAME, SALES_HEADER);
@@ -307,7 +307,9 @@ function salesList_(force) {
       const num = v => Number(String(v).replace(/,/g, '')) || 0;
       let daily = {};
       try { daily = JSON.parse(r[9] || '{}'); } catch (err) {}
-      months.push({ month: r[0], gross: num(r[1]), orders: num(r[2]), channels: channels, target: num(r[4]), updatedAt: r[5], updatedBy: r[6],
+      let split = null;
+      try { split = r[11] ? JSON.parse(r[11]) : null; } catch (err) {}
+      months.push({ month: r[0], gross: num(r[1]), orders: num(r[2]), channels: channels, target: num(r[4]), updatedAt: r[5], updatedBy: r[6], finalSplit: split,
         dailyGross: num(r[7]), dailyOrders: num(r[8]), dailyChannels: daily, dailyAt: r[10] || '' });
     });
   }
@@ -338,10 +340,11 @@ function salesUpsert_(body) {
     const row = salesFind_(sh, m.month);
     if (row) {
       sh.getRange(row, 1, 1, 4).setValues([values]);
+      if (m.split) sh.getRange(row, 12).setValue(JSON.stringify(m.split));
       sh.getRange(row, 6, 1, 2).setValues([[new Date(), body.by || '']]);
       updated++;
     } else {
-      sh.appendRow(values.concat(['', new Date(), body.by || '']));
+      sh.appendRow(values.concat(['', new Date(), body.by || '', '', '', '', '', m.split ? JSON.stringify(m.split) : '']));
       added++;
     }
   });
@@ -376,6 +379,9 @@ function salesSyncFromDrive_(force) {
 
   let seen = {};
   try { seen = JSON.parse(props.getProperty('SALES_FILES') || '{}'); } catch (err) {}
+  // ตัวอ่านไฟล์เปลี่ยน (เพิ่มแยก A5/A3) → อ่านทุกไฟล์ใหม่หนึ่งครั้ง
+  const PARSE_V = '2';
+  if (props.getProperty('SALES_PARSE_V') !== PARSE_V) { force = true; props.setProperty('SALES_PARSE_V', PARSE_V); }
   const sh = salesSheet_();
   const it = DriveApp.getFolderById(SALES_FOLDER_ID).getFiles();
   const latest = {}; // เดือน → ไฟล์ล่าสุดของเดือนนั้น
@@ -402,7 +408,16 @@ function salesParseCsv_(text) {
   const rows = Utilities.parseCsv(String(text).replace(/^\uFEFF/, ''));
   let month = '', gross = null, orders = 0;
   const channels = {};
+  const rowSum = { tiktok: { a5: 0, a3: 0, n: 0 }, line: { a5: 0, a3: 0, n: 0 } };
   rows.forEach(r => {
+    const plat = String(r[0] || '').trim();
+    if (plat === 'TikTok Shop' || plat === 'Line') {
+      const sku = String(r[4] || '').trim();
+      const gr = Number(String(r[6] || '').replace(/,/g, '')) || 0;
+      const is3 = plat === 'Line' ? /^A3$/i.test(sku) : salesClassify_(sku) === 'A3';
+      const t = rowSum[plat === 'Line' ? 'line' : 'tiktok'];
+      t[is3 ? 'a3' : 'a5'] += gr; t.n++;
+    }
     const m = String(r[0] || '').match(/(\d{4}-\d{2})-\d{2}\s+to\s+\d{4}-\d{2}-\d{2}/);
     if (m && !month) month = m[1];
     const label = String(r[4] || '').trim();
@@ -414,7 +429,22 @@ function salesParseCsv_(text) {
   });
   if (!month) return null;
   if (gross === null) gross = Object.keys(channels).reduce((a, k) => a + channels[k], 0);
-  return { month: month, gross: Math.round(gross * 100) / 100, orders: orders, channels: channels };
+  // แยกยอดงาน A5 / A3: Shopee จากยอดรวมหมวด, TikTok/Line จากรายการออเดอร์ (ถ้าไฟล์มีรายการ)
+  let a5 = channels['Shopee A5'] || 0, a3 = channels['Shopee A3'] || 0;
+  if (rowSum.tiktok.n) { a5 += rowSum.tiktok.a5; a3 += rowSum.tiktok.a3; }
+  if (rowSum.line.n) { a5 += rowSum.line.a5; a3 += rowSum.line.a3; }
+  const r2 = v => Math.round(v * 100) / 100;
+  const split = { a5: r2(a5), a3: r2(a3), other: r2(Math.max(0, gross - a5 - a3)) };
+  return { month: month, gross: Math.round(gross * 100) / 100, orders: orders, channels: channels, split: split };
+}
+
+// เหมือน classifyA5A3 ใน daily-parse.js / build_full_month.ps1
+function salesClassify_(sku) {
+  if (!String(sku).trim()) return 'A5';
+  const first = String(sku).split(';')[0].trim();
+  if (/^\d+-/.test(first)) return 'A5';
+  if (/PP/.test(sku) || String(sku).indexOf('กระดาษ') >= 0) return 'A3';
+  return 'A5';
 }
 
 // กด Run ฟังก์ชันนี้หนึ่งครั้งในหน้า Apps Script เพื่ออนุญาตให้สคริปต์อ่านโฟลเดอร์ยอดขายใน Drive
@@ -441,6 +471,7 @@ function salesDaily_(body) {
     Object.keys(m.channels || {}).forEach(k => {
       const c = m.channels[k] || {};
       cur[k] = { g: Math.round((Number(c.g) || 0) * 100) / 100, o: Number(c.o) || 0 };
+      if (c.a3 != null) cur[k].a3 = Math.round((Number(c.a3) || 0) * 100) / 100;
     });
     let g = 0, o = 0;
     Object.keys(cur).forEach(k => { g += cur[k].g; o += cur[k].o; });
@@ -490,8 +521,9 @@ function lineTotals_() {
     const o = lineRec_(r);
     const k = o.date.slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(k)) return;
-    const t = out[k] = out[k] || { g: 0, o: 0, at: '' };
+    const t = out[k] = out[k] || { g: 0, o: 0, a3: 0, at: '' };
     t.g = Math.round((t.g + o.amount) * 100) / 100;
+    if (o.job === 'A3') t.a3 = Math.round((t.a3 + o.amount) * 100) / 100;
     t.o += 1;
     if (o.at > t.at) t.at = o.at;
   });

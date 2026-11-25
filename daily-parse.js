@@ -24,11 +24,12 @@
     if (!firstDay[month] || day < firstDay[month]) firstDay[month] = day;
   }
 
-  function add(months, month, channel, g) {
+  function add(months, month, channel, g, a3) {
     const m = (months[month] = months[month] || {});
     const c = (m[channel] = m[channel] || { g: 0, o: 0 });
     c.g = Math.round((c.g + g) * 100) / 100;
     c.o += 1;
+    if (a3 != null) c.a3 = Math.round(((c.a3 || 0) + a3) * 100) / 100; // ส่วนที่เป็นงาน A3 ของช่องทางนี้
   }
 
   // Shopee: ยอดต่อออเดอร์ = รวม "ราคาขายสุทธิ" ทุกบรรทัด − ส่วนลดที่ร้านออกเอง (โค้ดส่วนลด/Coins cashback/bundle ที่ผู้ขายจ่าย)
@@ -89,6 +90,8 @@
       created: col("Created Time"),
       before: col("SKU Subtotal Before Discount"),
       seller: col("SKU Seller Discount"),
+      variation: col("Variation"),
+      sellerSku: col("Seller SKU"),
     };
     if (C.id < 0 || C.before < 0 || C.created < 0) return { error: "ไฟล์ TikTok ไม่มีคอลัมน์ที่ต้องใช้ (Order ID / SKU Subtotal Before Discount / Created Time)" };
     const orders = new Map();
@@ -110,7 +113,11 @@
       if (!d) continue;
       const month = `${d[3]}-${d[2]}`;
       const g = lines.reduce((a, l) => a + num(l[C.before]) - (C.seller >= 0 ? num(l[C.seller]) : 0), 0);
-      add(months, month, "TikTok Shop", g);
+      // แยก A5/A3 ทีละรายการตามชื่อตัวเลือก (เหมือน Shopee)
+      const a3 = C.variation >= 0
+        ? lines.reduce((a, l) => a + (classifyA5A3(txt(l[C.variation]) || txt(l[C.sellerSku])) === "A3" ? num(l[C.before]) - (C.seller >= 0 ? num(l[C.seller]) : 0) : 0), 0)
+        : 0;
+      add(months, month, "TikTok Shop", g, a3);
     }
     return { platform: "TikTok", orders: orders.size, months, firstDay, skipped };
   }
