@@ -432,6 +432,7 @@ function salesParseCsv_(text) {
   // แยกยอดงาน A5 / A3: Shopee จากยอดรวมหมวด, TikTok/Line จากรายการออเดอร์ (ถ้าไฟล์มีรายการ)
   let a5 = channels['Shopee A5'] || 0, a3 = channels['Shopee A3'] || 0;
   if (rowSum.tiktok.n) { a5 += rowSum.tiktok.a5; a3 += rowSum.tiktok.a3; }
+  else a5 += channels['TikTok Shop'] || 0; // TikTok ขายเฉพาะงาน A5
   if (rowSum.line.n) { a5 += rowSum.line.a5; a3 += rowSum.line.a3; }
   const r2 = v => Math.round(v * 100) / 100;
   const split = { a5: r2(a5), a3: r2(a3), other: r2(Math.max(0, gross - a5 - a3)) };

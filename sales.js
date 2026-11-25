@@ -113,7 +113,13 @@
   // ---------------- แยกยอดงาน A5 / A3 ----------------
   // Dashboard: ใช้ค่าที่สรุปจากไฟล์ (finalSplit) · รายวัน: Shopee แยกตามช่องทาง, TikTok/Line ใช้ a3 ที่คำนวณจากรายการ
   function splitOf(m) {
-    if (m.source === "dashboard" && m.finalSplit) return m.finalSplit;
+    if (m.source === "dashboard" && m.finalSplit) {
+      // ไฟล์สรุปที่ไม่มีรายการ TikTok: ยอด TikTok ที่ยังไม่แยกคือ A5 ทั้งหมด
+      const sp = { ...m.finalSplit };
+      const tk = Number((m.channels || {})["TikTok Shop"]) || 0;
+      if (sp.other > 0 && tk > 0) { const mv = Math.min(sp.other, tk); sp.a5 += mv; sp.other -= mv; }
+      return sp;
+    }
     if (m.source !== "daily") return null;
     let a5 = 0, a3 = 0, other = 0;
     for (const [n, c] of Object.entries(m.dailyChannels || {})) {
@@ -121,6 +127,7 @@
       if (/A3$/.test(n)) a3 += g;
       else if (/A5$/.test(n)) a5 += g;
       else if (c.a3 != null) { a3 += Number(c.a3) || 0; a5 += g - (Number(c.a3) || 0); }
+      else if (/^TikTok/i.test(n)) a5 += g; // TikTok ขายเฉพาะงาน A5
       else other += g;
     }
     return { a5, a3, other };
