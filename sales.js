@@ -410,7 +410,30 @@
   $("#dailyFile").addEventListener("change", (e) => { if (e.target.files.length) readDailyFiles([...e.target.files]); });
 
   // หน้าเว็บ (index.html) อาจยังเป็นเวอร์ชันเก่าที่เบราว์เซอร์จำไว้ ถ้าไม่มีปุ่มก็ข้ามไป ไม่ให้ทั้งหน้าค้าง
-  const dash = $("#salesDashLink");
+  let dash = $("#salesDashLink");
+  if (!dash && CFG.SALES_DASHBOARD_URL) {
+    // หน้าเว็บที่เครื่องจำไว้ยังไม่มีปุ่ม → สร้างปุ่มเองต่อจากการ์ดยอดขายแต่ละเดือน
+    dash = document.createElement("a");
+    dash.id = "salesDashLink";
+    dash.className = "card sales-dash-link";
+    dash.target = "_blank";
+    dash.rel = "noopener";
+    dash.innerHTML = `<span class="sales-dash-ico" aria-hidden="true">📊</span>
+      <span class="sales-dash-text"><b>เปิดแดชบอร์ดเวอร์ชั่นเต็ม</b><small>Sales Dashboard ตัวหลัก · เปิดเวอร์ชันล่าสุดเสมอ</small></span>
+      <span class="sales-dash-go" aria-hidden="true">↗</span>`;
+    // สไตล์สำรอง เผื่อไฟล์ styles.css ในเครื่องยังเป็นตัวเก่า
+    if (!document.getElementById("salesDashCss")) {
+      const st = document.createElement("style");
+      st.id = "salesDashCss";
+      st.textContent = `.sales-dash-link{display:flex;align-items:center;gap:14px;text-decoration:none;color:var(--text);border:2px solid var(--primary)}
+        .sales-dash-ico{font-size:1.8rem;line-height:1}.sales-dash-text{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+        .sales-dash-text b{color:var(--primary);font-size:1.02rem}.sales-dash-text small{color:var(--muted);font-size:.8rem}
+        .sales-dash-go{font-size:1.3rem;color:var(--primary);font-weight:700}`;
+      document.head.appendChild(st);
+    }
+    const listCard = $("#salesList") && $("#salesList").closest(".card");
+    if (listCard) listCard.after(dash); else dash = null;
+  }
   if (dash && CFG.SALES_DASHBOARD_URL) { dash.href = CFG.SALES_DASHBOARD_URL; dash.hidden = false; }
   $("#salesRefresh").addEventListener("click", () => pull(true));
   $("#salesSyncNow").addEventListener("click", async (e) => {
