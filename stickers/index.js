@@ -15,4 +15,12 @@ window.STICKER_IMAGES = {
   "89-Brownie06": "89-brownie06",
   "89-Brownie07": "89-brownie07",
   "89-Brownie08": "89-brownie08",
+  "87-BEAR01": "87-bear01",
+  "87-BEAR02": "87-bear02",
+  "87-BEAR03": "87-bear03",
+  "87-BEAR04": "87-bear04",
+  "87-BEAR05": "87-bear05",
+  "87-BEAR06": "87-bear06",
+  "87-BEAR07": "87-bear07",
+  "87-BEAR08": "87-bear08",
 };
