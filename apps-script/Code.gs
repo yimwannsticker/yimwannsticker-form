@@ -301,7 +301,10 @@ function salesList_(force) {
   const last = sh.getLastRow();
   const months = [];
   if (last >= 2) {
-    sh.getRange(2, 1, last - 1, SALES_HEADER.length).getDisplayValues().forEach(r => {
+    // เวลาอัปไฟล์รายวันล่าสุด (คอลัมน์ K) อ่านค่าจริงเพื่อให้ได้ทั้งวันที่และเวลา
+    const rawAt = sh.getRange(2, 11, last - 1, 1).getValues();
+    sh.getRange(2, 1, last - 1, SALES_HEADER.length).getDisplayValues().forEach((r, i) => {
+      const at = rawAt[i][0] instanceof Date ? rawAt[i][0].toISOString() : '';
       if (!r[0]) return;
       let channels = {};
       try { channels = JSON.parse(r[3] || '{}'); } catch (err) {}
@@ -311,7 +314,7 @@ function salesList_(force) {
       let split = null;
       try { split = r[11] ? JSON.parse(r[11]) : null; } catch (err) {}
       months.push({ month: r[0], gross: num(r[1]), orders: num(r[2]), channels: channels, target: num(r[4]), updatedAt: r[5], updatedBy: r[6], finalSplit: split,
-        dailyGross: num(r[7]), dailyOrders: num(r[8]), dailyChannels: daily, dailyAt: r[10] || '' });
+        dailyGross: num(r[7]), dailyOrders: num(r[8]), dailyChannels: daily, dailyAt: r[10] || '', dailyAtIso: at });
     });
   }
   // ยอด Line ที่แอดมินกรอกทีละออเดอร์ (ชีต "ออเดอร์ไลน์") รวมเข้ายอดรายวันของเดือนนั้น

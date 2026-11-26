@@ -110,6 +110,20 @@
     months.sort((a, b) => (a.month < b.month ? -1 : 1));
   }
 
+  // เวลาอัปไฟล์ยอดรายวันล่าสุด เช่น "วันนี้ 18:05 น." / "เมื่อวาน 17:40 น." / "24 พ.ย. 18:02 น."
+  function uploadedLabel(m) {
+    if (!m.dailyAtIso) return m.dailyAt || "-";
+    const d = new Date(m.dailyAtIso);
+    if (isNaN(d)) return m.dailyAt || "-";
+    const time = d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" }) + " น.";
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const day = new Date(d); day.setHours(0, 0, 0, 0);
+    const diff = Math.round((today - day) / 864e5);
+    if (diff === 0) return "วันนี้ " + time;
+    if (diff === 1) return "เมื่อวาน " + time;
+    return d.toLocaleDateString("th-TH", { day: "numeric", month: "short" }) + " " + time;
+  }
+
   // ---------------- แยกยอดงาน A5 / A3 ----------------
   // Dashboard: ใช้ค่าที่สรุปจากไฟล์ (finalSplit) · รายวัน: Shopee แยกตามช่องทาง, TikTok/Line ใช้ a3 ที่คำนวณจากรายการ
   function splitOf(m) {
@@ -188,7 +202,7 @@
           <span class="sales-eyebrow">${isCur ? "เดือนนี้" : "เดือนล่าสุด"} · ${esc(monthLabel(show.month, true))}</span>
         </div>
         <div class="sales-big">${baht(show.gross)}</div>
-        <p class="sales-src">${show.source === "dashboard" ? "✓ ยอดยืนยันจาก Dashboard" : show.source === "daily" ? `ยอดรายวัน · อัปล่าสุด ${esc(show.dailyAt)}` : ""}</p>
+        <p class="sales-src">${show.source === "dashboard" ? "✓ ยอดยืนยันจาก Dashboard" : show.source === "daily" ? `ยอดรายวัน · อัปไฟล์ล่าสุด ${esc(uploadedLabel(show))}` : ""}</p>
         ${splitBlock(splitOf(show))}
         ${show.target > 0 ? `
           ${show.passed && show.passed.length ? `<div class="sales-cheer">🎉 ทะลุเป้า ${baht(show.passed[show.passed.length - 1])} แล้ว! เป้าใหม่ ${baht(show.target)}</div>` : ""}
